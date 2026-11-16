@@ -77,6 +77,39 @@ MAYA_DB_PATH=./data/demo.db npm run dev
 
 Without `MAYA_DB_PATH`, the app uses `data/maya.db`, which starts empty.
 
+## Windows desktop app
+
+The web UI is wrapped in Electron. The installed app bundles its own Node runtime and the Next standalone server, so Maya does not need Node or a terminal on her laptop.
+
+```bash
+npm run dev             # terminal 1, for desktop development
+npm run desktop:dev     # terminal 2, opens the Electron window
+
+npm run desktop:pack    # local unpacked app for testing
+npm run desktop:win     # Windows NSIS installer, run on Windows
+```
+
+The Windows installer is built by `.github/workflows/windows.yml` on a `windows-latest` runner. It uploads `release/Maya-Setup-*.exe` as an artifact. It is **unsigned** unless you add a code-signing certificate; unsigned installers trigger Windows SmartScreen.
+
+### First run
+
+On a new install, the app detects RAM and GPU and shows a setup card:
+
+- **16 GB+ with a dedicated GPU, or 24 GB+ overall** → recommend local `qwen3.5:9b` (6.6 GB) plus `all-minilm` (45 MB).
+- **8–12 GB or integrated graphics** → recommend the cloud API; local `all-minilm` embeddings can still be used.
+- **24 GB+** → the optional 12B HF humaniser is a Lab baseline, not a default.
+
+If local is chosen, the card checks for Ollama, offers a download link if it is missing, and downloads the two models with progress. If API is chosen, it links to **Settings → Writer → Cloud API**, where the provider preset, key, model and connection test live.
+
+The app data lives in `%APPDATA%\Maya\maya.db`. The local server binds to `127.0.0.1` on a random port. The installer never contains the workspace database; `desktop:prepare` excludes it and refuses to package any `.db`, `.sqlite`, or `.sqlite3` file.
+
+### Desktop caveats
+
+- The Windows installer is configured but not built or signed in this repository. The first artifact must be produced on Windows/CI.
+- The app bundles the Node runtime from the build machine; the CI uses Node 24 so the native SQLite binary matches.
+- No auto-updater yet. Install a newer signed build over the old one.
+- The macOS `desktop:pack` target is for local testing; the Windows target is the shipping target.
+
 ## Models
 
 ### Writer: local or cloud
@@ -246,6 +279,11 @@ npm run typecheck  # tsc --noEmit
 npm test           # vitest
 npm run benchmark  # repeatable proxy benchmark, see BENCHMARK.md
 npm run seed       # demo database, no model call
+
+npm run desktop:dev      # Electron against the local dev server
+npm run desktop:prepare  # copy standalone assets + bundled Node runtime
+npm run desktop:pack     # unpacked local desktop app
+npm run desktop:win      # Windows NSIS installer
 ```
 
 Useful environment variables:
@@ -294,6 +332,10 @@ lib/
   llm.ts             OpenAI-compatible client, streaming, embeddings, native completion
 scripts/seed-demo.ts
 scripts/benchmark.ts
+scripts/prepare-desktop.mjs
+desktop/main.cjs
+desktop/preload.cjs
+electron-builder.yml
 BENCHMARK.md
 tests/
 ```

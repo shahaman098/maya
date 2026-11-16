@@ -8,6 +8,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { SetupChecklist } from "@/components/dashboard-checklist";
+import { DesktopSetup } from "@/components/desktop-setup";
 import { Badge, Card } from "@/components/ui";
 import { getLatestProfile } from "@/lib/profile";
 import { countRewrites, listRewrites } from "@/lib/rewrites";
@@ -142,6 +143,8 @@ export default function HomePage() {
 
   return (
     <div className="space-y-7">
+      <DesktopSetup samples={library.samples} />
+
       <section className="grid gap-7 lg:grid-cols-[minmax(0,1.4fr)_minmax(280px,.6fr)] lg:items-end">
         <div className="animate-rise">
           <p className="eyebrow">{date}</p>

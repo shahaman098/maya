@@ -16,3 +16,8 @@ next-env.d.ts
 *.docx
 *.doc
 *.pdf
+
+# Desktop build artifacts
+desktop-runtime/
+desktop-resources/
+release/

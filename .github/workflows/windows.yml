@@ -1,0 +1,36 @@
+name: Windows desktop installer
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Rebuild SQLite for the bundled Node runtime
+        run: npm rebuild better-sqlite3
+
+      - name: Build installer
+        run: npm run desktop:win
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: maya-windows-installer
+          path: release/*.exe
+          if-no-files-found: error
