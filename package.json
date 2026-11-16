@@ -12,6 +12,7 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "benchmark": "tsx scripts/benchmark.ts",
     "seed": "tsx scripts/seed-demo.ts"
   },
   "dependencies": {

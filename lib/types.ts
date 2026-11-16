@@ -244,6 +244,7 @@ export interface BaselineSettings {
   apiKey: string;
   temperature: number;
   disableThinking: boolean;
+  promptFormat: "chat" | "humanizer";
 }
 
 export interface Settings {

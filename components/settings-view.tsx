@@ -838,6 +838,26 @@ export function SettingsView({
                       placeholder="Optional"
                     />
                   </Field>
+                  <Field
+                    label="Prompt format"
+                    hint="Use Humaniser completion for npario/humanizer. Use Chat for ordinary chat models."
+                  >
+                    <Select
+                      value={settings.baseline.promptFormat}
+                      onChange={(event) =>
+                        updateBaseline({
+                          promptFormat: event.target.value as
+                            | "chat"
+                            | "humanizer",
+                        })
+                      }
+                    >
+                      <option value="chat">Chat messages</option>
+                      <option value="humanizer">
+                        Humaniser completion prompt
+                      </option>
+                    </Select>
+                  </Field>
                 </div>
                 <div className="mt-4">
                   <div className="flex items-center justify-between gap-3">

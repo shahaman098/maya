@@ -40,6 +40,24 @@ describe("AI-tell detection", () => {
     expect(checks.score).toBeGreaterThanOrEqual(90);
   });
 
+  it("treats number words and digits as the same fact", () => {
+    const draft = "We tested 3 models on 2 datasets.";
+    const output = "We tested three models on two datasets.";
+    const checks = runChecks({ draft, output });
+
+    expect(checks.facts.missingNumbers).toEqual([]);
+    expect(checks.facts.critical).toBe(false);
+  });
+
+  it("flags a dropped number word", () => {
+    const draft = "The release removes two unnecessary steps.";
+    const output = "The release removes unnecessary steps.";
+    const checks = runChecks({ draft, output });
+
+    expect(checks.facts.missingNumbers).toContain("2");
+    expect(checks.facts.critical).toBe(true);
+  });
+
   it("flags a draft that was left unchanged", () => {
     const draft =
       "This study examines whether retrieval improves factual accuracy in small models.";

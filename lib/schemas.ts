@@ -107,6 +107,7 @@ export const baselineConnectionSchema = z.object({
   apiKey: z.string().max(500),
   temperature: z.number().min(0).max(2),
   disableThinking: z.boolean(),
+  promptFormat: z.enum(["chat", "humanizer"]),
 });
 
 export const settingsSchema = z.object({

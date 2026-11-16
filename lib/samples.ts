@@ -232,6 +232,19 @@ export function countSamples(): number {
   return getSampleCounts().all;
 }
 
+export function getGenreCounts(): Partial<Record<Genre, number>> {
+  const rows = getDb()
+    .prepare(
+      "SELECT genre, COUNT(*) AS n FROM samples WHERE consent = 1 GROUP BY genre",
+    )
+    .all() as Array<{ genre: string; n: number }>;
+  const counts: Partial<Record<Genre, number>> = {};
+  for (const row of rows) {
+    counts[row.genre as Genre] = row.n;
+  }
+  return counts;
+}
+
 export function getLibraryStats(): {
   samples: number;
   words: number;

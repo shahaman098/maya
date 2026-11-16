@@ -20,6 +20,9 @@ export interface TokenUsage {
 export interface ChatOptions {
   temperature?: number;
   maxTokens?: number;
+  topK?: number;
+  minP?: number;
+  repeatPenalty?: number;
   signal?: AbortSignal;
   timeoutMs?: number;
   json?: boolean;
@@ -27,6 +30,12 @@ export interface ChatOptions {
 }
 
 export interface ChatResult {
+  content: string;
+  usage: TokenUsage;
+  model: string;
+}
+
+export interface CompletionResult {
   content: string;
   usage: TokenUsage;
   model: string;
@@ -210,7 +219,7 @@ async function postChat(
 ): Promise<Response> {
   let attempts = 0;
 
-  while (attempts < 7) {
+  while (attempts < 10) {
     try {
       return await post(connection, "/chat/completions", body, options);
     } catch (error) {
@@ -233,6 +242,18 @@ async function postChat(
       }
       if (/top_p/.test(message) && "top_p" in body) {
         delete body.top_p;
+        continue;
+      }
+      if (/top_k/.test(message) && "top_k" in body) {
+        delete body.top_k;
+        continue;
+      }
+      if (/min_p/.test(message) && "min_p" in body) {
+        delete body.min_p;
+        continue;
+      }
+      if (/repeat_penalty/.test(message) && "repeat_penalty" in body) {
+        delete body.repeat_penalty;
         continue;
       }
       if (/reasoning_effort/.test(message) && "reasoning_effort" in body) {
@@ -265,6 +286,18 @@ async function postChat(
       if ("max_tokens" in body) {
         body.max_completion_tokens = body.max_tokens;
         delete body.max_tokens;
+        continue;
+      }
+      if ("top_k" in body) {
+        delete body.top_k;
+        continue;
+      }
+      if ("min_p" in body) {
+        delete body.min_p;
+        continue;
+      }
+      if ("repeat_penalty" in body) {
+        delete body.repeat_penalty;
         continue;
       }
 
@@ -364,6 +397,11 @@ export async function chat(
   };
   if (connection.disableThinking) body.reasoning_effort = "none";
   if (options.json) body.response_format = { type: "json_object" };
+  if (typeof options.topK === "number") body.top_k = options.topK;
+  if (typeof options.minP === "number") body.min_p = options.minP;
+  if (typeof options.repeatPenalty === "number") {
+    body.repeat_penalty = options.repeatPenalty;
+  }
 
   const response = await postChat(connection, body, options);
   const payload = (await response.json()) as Record<string, unknown>;
@@ -385,6 +423,113 @@ function deltaText(delta: unknown): string {
   return textFromContent(record.content);
 }
 
+function ollamaRoot(baseUrl: string): string | null {
+  try {
+    const url = new URL(baseUrl);
+    if (url.port === "11434" || url.hostname === "ollama") {
+      return url.origin;
+    }
+  } catch {
+    // Invalid URLs are handled by the settings schema.
+  }
+  return null;
+}
+
+export async function complete(
+  connection: ModelConnection,
+  prompt: string,
+  options: ChatOptions = {},
+): Promise<CompletionResult> {
+  const root = ollamaRoot(connection.baseUrl);
+  const timeout = AbortSignal.timeout(options.timeoutMs ?? 300_000);
+  const signal = options.signal
+    ? AbortSignal.any([options.signal, timeout])
+    : timeout;
+
+  if (root) {
+    const body = {
+      model: connection.model,
+      prompt,
+      raw: true,
+      stream: false,
+      options: {
+        temperature: options.temperature ?? 1,
+        top_p: 0.95,
+        top_k: options.topK ?? 0,
+        min_p: options.minP ?? 0,
+        repeat_penalty: options.repeatPenalty ?? 1,
+        num_predict: options.maxTokens ?? 2048,
+      },
+    };
+
+    let response: Response;
+    try {
+      response = await fetch(`${root}/api/generate`, {
+        method: "POST",
+        headers: headersFor(connection),
+        body: JSON.stringify(body),
+        signal,
+      });
+    } catch (error) {
+      throw fetchFailure(error, connection, options.signal);
+    }
+
+    if (!response.ok) {
+      const raw = await response.text();
+      throw httpFailure(response.status, raw, connection);
+    }
+
+    const payload = (await response.json()) as Record<string, unknown>;
+    const content = typeof payload.response === "string" ? payload.response : "";
+    if (!content.trim()) {
+      throw new LLMError("The completion endpoint returned no text.", {
+        code: "empty",
+      });
+    }
+
+    const usage = {
+      input: Number(payload.prompt_eval_count ?? 0),
+      output: Number(payload.eval_count ?? 0),
+    };
+    options.onUsage?.(usage);
+    return { content, usage, model: connection.model };
+  }
+
+  const body: Record<string, unknown> = {
+    model: connection.model,
+    prompt,
+    stream: false,
+    temperature: options.temperature ?? 1,
+    top_p: 0.95,
+    max_tokens: options.maxTokens ?? 2048,
+  };
+  if (typeof options.topK === "number") body.top_k = options.topK;
+  if (typeof options.minP === "number") body.min_p = options.minP;
+  if (typeof options.repeatPenalty === "number") {
+    body.repeat_penalty = options.repeatPenalty;
+  }
+
+  const response = await post(connection, "/completions", body, options);
+  const payload = (await response.json()) as Record<string, unknown>;
+  const choices = Array.isArray(payload.choices) ? payload.choices : [];
+  const first = choices[0] as { text?: unknown } | undefined;
+  const content = typeof first?.text === "string" ? first.text : "";
+  if (!content.trim()) {
+    throw new LLMError("The completion endpoint returned no text.", {
+      code: "empty",
+    });
+  }
+
+  const usage = readUsage(payload);
+  options.onUsage?.(usage);
+  return {
+    content,
+    usage,
+    model:
+      typeof payload.model === "string" ? payload.model : connection.model,
+  };
+}
+
 export async function* streamChat(
   connection: ModelConnection,
   messages: ChatMessage[],
@@ -399,6 +544,11 @@ export async function* streamChat(
     max_tokens: options.maxTokens ?? 1200,
   };
   if (connection.disableThinking) body.reasoning_effort = "none";
+  if (typeof options.topK === "number") body.top_k = options.topK;
+  if (typeof options.minP === "number") body.min_p = options.minP;
+  if (typeof options.repeatPenalty === "number") {
+    body.repeat_penalty = options.repeatPenalty;
+  }
 
   const response = await postChat(connection, body, {
     ...options,

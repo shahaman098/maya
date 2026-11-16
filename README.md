@@ -13,7 +13,8 @@ It is an editor. It is not an AI detector, and it does not promise to beat one.
 - **Builds a voice profile** from real writing. Sentence rhythm, contractions, lowercase habits, punctuation, recurring phrases, openings, and sign-offs. A model adds a qualitative read: rhythm, diction, structure, punctuation, warmth, quirks, and things to avoid.
 - **Retrieves style references** using format, audience, length, wording overlap, and optional MiniLM embeddings from a separate embeddings endpoint. Results are diversified so you don't get five near-identical samples.
 - **Rewrites in context**: message, email, essay, post, or note; to a friend, colleague, client, or public audience; shorter, same, or a little longer; preserve, light touch, or restructure.
-- **Checks the result**: preserved numbers, quotes, names, and links; AI tells; sentence rhythm; length; PII; and unchanged or repeated drafts.
+- **Checks the result**: preserved numbers (including number words), quotes, names, and links; AI tells; sentence rhythm; length; PII; and unchanged or repeated drafts.
+- **Falls back safely**: if there are fewer than two samples in the draft's format, it uses a conservative generic edit and says so instead of forcing an academic voice onto a text message.
 - **Audits fidelity** with the model, then makes a targeted second pass when details go missing. A candidate is only accepted if it does not lose more facts than the first pass.
 - **Repairs leftover tells** sentence by sentence, instead of rewriting the whole draft again.
 - **Shows the evidence**: which samples were retrieved and why, plus the measured habits behind the profile.
@@ -113,7 +114,9 @@ llama-server -m ./humanizer-model/humanizer-12b-Q4_K_M.gguf \
 
 In **Settings → Baseline**, enable the comparison, set the base URL to `http://127.0.0.1:8081/v1`, and use the model id shown by **Test connection**. Recent GGUF downloads include a chat template that turns the last user message into the model's fixed prompt. Older downloads may not; use a current file or its own app/CLI.
 
-The baseline's published detector results are its authors' measurements, not an independent benchmark. The same applies to any detector number.
+For `npario/humanizer`, also set **Prompt format → Humaniser completion prompt**. The client then uses Ollama's native `/api/generate` endpoint and the model's required completion prompt, not a chat message.
+
+The baseline's published detector results are its authors' measurements, not an independent benchmark. The same applies to any detector number. Maya does not use it in the default voice path: in [BENCHMARK.md](BENCHMARK.md), chaining it after the voice pass reduced fact preservation.
 
 ## How the voice engine works
 
@@ -182,7 +185,7 @@ The writer is told to edit, not replace, the draft:
 
 `lib/checks.ts` is deterministic and fast:
 
-- numbers, dates, quoted strings, names, links: missing or added;
+- numbers (digits and number words), dates, quoted strings, names, links: missing or added;
 - unchanged drafts, and drafts repeated inside the output;
 - 18+ AI-tell patterns, including not-X-but-Y variants, press-release phrasing, dramatic closers, throat-clearing, AI vocabulary, inflated significance, sales language, chatbot residue, unnamed authority, stacked hedges, repeated openings, uniform rhythm, em-dash pileups, bold decoration, and curly quotes;
 - sentence rhythm compared with the profile;
@@ -241,6 +244,7 @@ npm run build      # production build
 npm start          # production server
 npm run typecheck  # tsc --noEmit
 npm test           # vitest
+npm run benchmark  # repeatable proxy benchmark, see BENCHMARK.md
 npm run seed       # demo database, no model call
 ```
 
@@ -287,8 +291,10 @@ lib/
   tell-repair.ts     sentence-level tell repair
   rewrite.ts         pipeline orchestration
   eval.ts            Lab cases and runs
-  llm.ts             OpenAI-compatible client, streaming, embeddings
+  llm.ts             OpenAI-compatible client, streaming, embeddings, native completion
 scripts/seed-demo.ts
+scripts/benchmark.ts
+BENCHMARK.md
 tests/
 ```
 
@@ -315,10 +321,11 @@ The tests cover stylometry, fact/tell checks, PII redaction, and the WhatsApp/JS
 - PII detection is regex/Luhn based. It is not a privacy guarantee.
 - Single-user, local-first, no auth, no multi-tenant isolation.
 - No LoRA training is included. The right first step is retrieval and edited pairs; fine-tune only when there are enough approved examples.
-- The baseline comparison is a manual Lab, not a controlled benchmark.
+- The baseline comparison is a manual Lab, not a controlled benchmark. The repeatable proxy benchmark is separate; see [BENCHMARK.md](BENCHMARK.md).
 - The Cloud API slot needs a working key. Without one, the connection test returns an authentication error; that is expected. API model names and parameter support vary by provider, and the compatibility retries cannot cover every gateway.
 - The local and cloud writer slots share the same temperature, retrieval count, and repair settings. Only the endpoint, model, key, and thinking switch are per slot.
 - A 9B local model can leave a dense academic draft unchanged or repeat it. The checks flag this now, but it is not a rewrite. For dense long-form work, a stronger cloud API model is usually the better first pass.
+- The current profile in this workspace is based on three long-form academic samples. Emails, messages and posts correctly fall back to a generic edit until at least two samples exist in those formats. The benchmark is explicit about this; see [BENCHMARK.md](BENCHMARK.md).
 - DOCX is not a first-class upload format in the UI yet. Pasted text, WhatsApp exports, TXT, JSON, and CSV are supported. For a long DOCX, extract the sections that are actually the writer's prose and paste them; template guidance, tables of contents, form labels, and reviewer comments should be excluded.
 
 ## Roadmap

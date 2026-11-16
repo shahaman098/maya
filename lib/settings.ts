@@ -36,6 +36,7 @@ export const DEFAULT_SETTINGS: Settings = {
     apiKey: "",
     temperature: 1,
     disableThinking: false,
+    promptFormat: "chat",
   },
   embedding: {
     baseUrl:

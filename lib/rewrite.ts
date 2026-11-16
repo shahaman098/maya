@@ -4,6 +4,7 @@ import { repairTells } from "@/lib/tell-repair";
 import { ApiError } from "@/lib/http";
 import {
   chat,
+  complete,
   LLMError,
   type ChatMessage,
   type ModelConnection,
@@ -12,11 +13,13 @@ import {
 import { ensureProfileForRewrite } from "@/lib/profile";
 import {
   buildBaselineMessages,
+  buildHumanizerPrompt,
   buildPolishMessages,
   buildRawMessages,
   buildRewriteMessages,
 } from "@/lib/prompts";
 import { retrieveExamples, type RetrievedExample } from "@/lib/retrieval";
+import { getGenreCounts } from "@/lib/samples";
 import { getSettings } from "@/lib/settings";
 import type {
   Checks,
@@ -28,6 +31,7 @@ import {
   clamp,
   cleanModelOutput,
   countWords,
+  GENRE_LABELS,
   stripSafeTells,
 } from "@/lib/utils";
 import { runChecks } from "@/lib/checks";
@@ -133,23 +137,32 @@ export async function prepareRewrite(
       name: settings.person.name,
     });
   } else {
-    profile = await ensureProfileForRewrite();
-    if (!profile) {
+    const genreCounts = getGenreCounts();
+    const sameGenre = genreCounts[input.genre] ?? 0;
+
+    if (sameGenre < 2) {
       warnings.push(
-        "There is no voice profile yet, so this will be a generic edit. Add a few samples in Voice to match your writing.",
+        `Only ${sameGenre} ${GENRE_LABELS[input.genre].toLowerCase()} sample${sameGenre === 1 ? "" : "s"} in the library. Using a conservative generic edit until there are at least two.`,
       );
     } else {
-      const embedding = activeEmbedding(settings);
-      const retrieval = await retrieveExamples({
-        draft: input.draft,
-        genre: input.genre,
-        audience: input.audience,
-        settings: settings.writer,
-        connection: embedding.connection,
-        embeddingModel: embedding.model,
-      });
-      examples = retrieval.examples;
-      if (retrieval.warning) warnings.push(retrieval.warning);
+      profile = await ensureProfileForRewrite();
+      if (!profile) {
+        warnings.push(
+          "There is no voice profile yet, so this will be a generic edit. Add a few samples in Voice to match your writing.",
+        );
+      } else {
+        const embedding = activeEmbedding(settings);
+        const retrieval = await retrieveExamples({
+          draft: input.draft,
+          genre: input.genre,
+          audience: input.audience,
+          settings: settings.writer,
+          connection: embedding.connection,
+          embeddingModel: embedding.model,
+        });
+        examples = retrieval.examples;
+        if (retrieval.warning) warnings.push(retrieval.warning);
+      }
     }
 
     messages = buildRewriteMessages({
@@ -250,11 +263,51 @@ export async function executeRewrite(
   const prepared = await prepareRewrite(input, variant);
   const maxTokens = outputTokenBudget(input.draft);
 
+  if (
+    variant === "baseline" &&
+    prepared.settings.baseline.promptFormat === "humanizer"
+  ) {
+    const result = await complete(
+      prepared.connection,
+      buildHumanizerPrompt(input.draft),
+      {
+        temperature: prepared.temperature,
+        maxTokens,
+        topK: 0,
+        minP: 0,
+        repeatPenalty: 1,
+        timeoutMs: 300_000,
+        signal: options.signal,
+      },
+    );
+    const output = cleanModelOutput(result.content);
+    if (!output.trim()) {
+      throw new LLMError("The humaniser returned no usable text.", {
+        code: "empty",
+      });
+    }
+    const checks = runChecks({
+      draft: input.draft,
+      output,
+      profile: prepared.profile,
+    });
+    return {
+      output,
+      checks,
+      usage: result.usage,
+      latencyMs: Date.now() - started,
+      prepared,
+    };
+  }
+
   const first = await chat(prepared.connection, prepared.messages, {
     temperature: prepared.temperature,
     maxTokens,
     timeoutMs: 240_000,
     signal: options.signal,
+    ...(variant === "baseline"
+      ? { topK: 0, minP: 0, repeatPenalty: 1 }
+      : {}),
   });
 
   let output = cleanModelOutput(first.content);
