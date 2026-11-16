@@ -66,8 +66,9 @@ function parseProgress(line: string): string {
     .replace(/\u001b\[[0-9;]*m/g, "")
     .replace(/\r/g, "")
     .trim();
-  const percent = clean.match(/(\d{1,3})%/);
-  return percent ? `${percent[1]}%` : clean.slice(-120);
+  const matches = [...clean.matchAll(/(\d{1,3})%/g)];
+  const last = matches.at(-1);
+  return last ? `${last[1]}%` : clean.slice(-120);
 }
 
 export function DesktopSetup({ samples }: { samples: number }) {

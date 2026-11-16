@@ -297,7 +297,7 @@ function registerIpc() {
         stdio: ["ignore", "pipe", "pipe"],
       });
       const send = (chunk) => {
-        for (const line of String(chunk).split(/\r?\n/)) {
+        for (const line of String(chunk).split(/\r\n|\r|\n/)) {
           if (line.trim()) {
             event.sender.send("maya:ollama-progress", {
               model,
