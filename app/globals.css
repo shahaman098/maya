@@ -1,0 +1,225 @@
+@import "tailwindcss";
+
+@theme {
+  --color-paper: #f5f0e6;
+  --color-surface: #fffdf8;
+  --color-surface-2: #faf6ee;
+  --color-ink: #24211c;
+  --color-ink-soft: #4f483d;
+  --color-muted: #6f6658;
+  --color-faint: #938878;
+  --color-line: #e4dbcb;
+  --color-line-strong: #d2c5b2;
+  --color-accent: #b0472b;
+  --color-accent-hover: #973a22;
+  --color-accent-soft: #f3e2d8;
+  --color-moss: #4c684e;
+  --color-moss-soft: #e5ece2;
+  --color-amber: #96691f;
+  --color-amber-soft: #f6ead1;
+  --color-danger: #9d3527;
+  --font-serif:
+    "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia,
+    serif;
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Helvetica,
+    Arial, sans-serif;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: var(--color-paper);
+    background-image:
+      radial-gradient(
+        1200px 620px at 78% -8%,
+        rgba(176, 71, 43, 0.07),
+        transparent 62%
+      ),
+      radial-gradient(
+        900px 520px at 0% 18%,
+        rgba(76, 104, 78, 0.045),
+        transparent 55%
+      );
+    background-attachment: fixed;
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  ::selection {
+    background: var(--color-accent-soft);
+    color: var(--color-ink);
+  }
+
+  * {
+    border-color: var(--color-line);
+  }
+
+  button,
+  a,
+  input,
+  textarea,
+  select {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  :focus-visible {
+    outline: 2px solid
+      color-mix(in srgb, var(--color-accent) 45%, transparent);
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  .eyebrow {
+    @apply text-[10.5px] font-semibold uppercase tracking-[0.16em] text-faint;
+  }
+
+  .display {
+    font-family: var(--font-serif);
+    letter-spacing: -0.032em;
+    line-height: 1.02;
+  }
+
+  .lede {
+    @apply text-[16px] leading-7 text-muted;
+  }
+
+  .card-shadow {
+    box-shadow:
+      0 1px 0 rgba(36, 33, 28, 0.03),
+      0 26px 54px -38px rgba(36, 33, 28, 0.38);
+  }
+
+  .scroll-thin {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-line-strong) transparent;
+  }
+
+  .scroll-thin::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  .scroll-thin::-webkit-scrollbar-thumb {
+    background: var(--color-line-strong);
+    border-radius: 99px;
+  }
+
+  .scroll-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .text-pretty {
+    text-wrap: pretty;
+  }
+
+  .kbd {
+    @apply inline-flex h-5 min-w-5 items-center justify-center rounded border border-line bg-surface px-1.5 font-sans text-[10px] font-medium text-muted;
+  }
+
+  .prose-output {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font-size: 15.5px;
+    line-height: 1.82;
+    color: var(--color-ink-soft);
+  }
+
+  .diff-add {
+    background: var(--color-moss-soft);
+    color: #2f4a33;
+    border-radius: 3px;
+  }
+
+  .diff-remove {
+    background: var(--color-accent-soft);
+    color: #7b2b17;
+    text-decoration: line-through;
+    text-decoration-color: rgba(176, 71, 43, 0.4);
+    border-radius: 3px;
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+@keyframes soft-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.animate-rise {
+  animation: rise 0.36s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.animate-fade {
+  animation: fade 0.25s ease both;
+}
+
+.caret::after {
+  content: "";
+  display: inline-block;
+  width: 2px;
+  height: 1.05em;
+  margin-left: 2px;
+  vertical-align: -0.12em;
+  background: var(--color-accent);
+  animation: blink 1s step-end infinite;
+}
+
+.dot-pulse {
+  animation: soft-pulse 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
