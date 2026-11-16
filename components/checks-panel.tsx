@@ -133,7 +133,7 @@ export function ChecksPanel({ checks }: { checks: Checks }) {
           {checks.tells.length > 0 && (
             <div className="rounded-lg border border-line bg-surface/70 p-3">
               <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-faint">
-                AI-shaped phrases
+                Patterns found
               </p>
               <ul className="mt-2 space-y-1.5">
                 {checks.tells.slice(0, 5).map((tell) => (

@@ -10,3 +10,8 @@ data/
 .DS_Store
 coverage/
 *.tsbuildinfo
+
+# Personal writing imports. Keep them out of git.
+*.docx
+*.doc
+*.pdf

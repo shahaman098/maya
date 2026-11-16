@@ -39,4 +39,24 @@ describe("AI-tell detection", () => {
     expect(checks.tells).toHaveLength(0);
     expect(checks.score).toBeGreaterThanOrEqual(90);
   });
+
+  it("flags a draft that was left unchanged", () => {
+    const draft =
+      "This study examines whether retrieval improves factual accuracy in small models.";
+    const checks = runChecks({ draft, output: draft });
+
+    expect(checks.tells.some((tell) => tell.id === "unchanged")).toBe(true);
+    expect(checks.score).toBeLessThan(80);
+    expect(checks.notes.join(" ")).toContain("unchanged");
+  });
+
+  it("flags a draft repeated inside the output", () => {
+    const draft =
+      "This study examines whether retrieval improves factual accuracy in small models across two benchmarks.";
+    const output = `${draft}\n\n${draft}`;
+    const checks = runChecks({ draft, output });
+
+    expect(checks.tells.some((tell) => tell.id === "repeated-draft")).toBe(true);
+    expect(checks.score).toBeLessThan(85);
+  });
 });

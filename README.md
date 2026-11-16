@@ -13,7 +13,7 @@ It is an editor. It is not an AI detector, and it does not promise to beat one.
 - **Builds a voice profile** from real writing. Sentence rhythm, contractions, lowercase habits, punctuation, recurring phrases, openings, and sign-offs. A model adds a qualitative read: rhythm, diction, structure, punctuation, warmth, quirks, and things to avoid.
 - **Retrieves style references** using format, audience, length, wording overlap, and optional MiniLM embeddings from a separate embeddings endpoint. Results are diversified so you don't get five near-identical samples.
 - **Rewrites in context**: message, email, essay, post, or note; to a friend, colleague, client, or public audience; shorter, same, or a little longer; preserve, light touch, or restructure.
-- **Checks the result**: preserved numbers, quotes, names, and links; AI tells; sentence rhythm; length; and PII.
+- **Checks the result**: preserved numbers, quotes, names, and links; AI tells; sentence rhythm; length; PII; and unchanged or repeated drafts.
 - **Audits fidelity** with the model, then makes a targeted second pass when details go missing. A candidate is only accepted if it does not lose more facts than the first pass.
 - **Repairs leftover tells** sentence by sentence, instead of rewriting the whole draft again.
 - **Shows the evidence**: which samples were retrieved and why, plus the measured habits behind the profile.
@@ -183,6 +183,7 @@ The writer is told to edit, not replace, the draft:
 `lib/checks.ts` is deterministic and fast:
 
 - numbers, dates, quoted strings, names, links: missing or added;
+- unchanged drafts, and drafts repeated inside the output;
 - 18+ AI-tell patterns, including not-X-but-Y variants, press-release phrasing, dramatic closers, throat-clearing, AI vocabulary, inflated significance, sales language, chatbot residue, unnamed authority, stacked hedges, repeated openings, uniform rhythm, em-dash pileups, bold decoration, and curly quotes;
 - sentence rhythm compared with the profile;
 - length ratio;
@@ -230,6 +231,7 @@ Imports are deduplicated, short fragments are skipped, and PII is redacted by de
 - PII detection is best-effort. Review a sample after import if it contains sensitive details.
 - If you point the writer at a hosted endpoint, drafts, samples, and retrieved examples are sent there. If you point embeddings at a hosted endpoint, sample text is sent there for embedding. The Settings page warns you in both cases.
 - Keys pasted into Settings are stored in the local SQLite file. Keys from `.env.local` stay out of the database. The JSON export omits both.
+- DOCX, DOC, and PDF files in the project are ignored by git. Imported text lives in the ignored SQLite database. Remove identity details from a document before importing it; the PII redactor covers emails, numbers, cards, and handles, not names.
 
 ## Development
 
@@ -316,6 +318,8 @@ The tests cover stylometry, fact/tell checks, PII redaction, and the WhatsApp/JS
 - The baseline comparison is a manual Lab, not a controlled benchmark.
 - The Cloud API slot needs a working key. Without one, the connection test returns an authentication error; that is expected. API model names and parameter support vary by provider, and the compatibility retries cannot cover every gateway.
 - The local and cloud writer slots share the same temperature, retrieval count, and repair settings. Only the endpoint, model, key, and thinking switch are per slot.
+- A 9B local model can leave a dense academic draft unchanged or repeat it. The checks flag this now, but it is not a rewrite. For dense long-form work, a stronger cloud API model is usually the better first pass.
+- DOCX is not a first-class upload format in the UI yet. Pasted text, WhatsApp exports, TXT, JSON, and CSV are supported. For a long DOCX, extract the sections that are actually the writer's prose and paste them; template guidance, tables of contents, form labels, and reviewer comments should be excluded.
 
 ## Roadmap
 

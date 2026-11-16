@@ -8,7 +8,12 @@ import type {
   TellReport,
   TellSeverity,
 } from "@/lib/types";
-import { clamp, countWords, truncate } from "@/lib/utils";
+import {
+  clamp,
+  countWords,
+  normalizeForHash,
+  truncate,
+} from "@/lib/utils";
 
 interface TellRule {
   id: string;
@@ -358,6 +363,33 @@ export function runChecks(input: {
   const facts = factCheck(draft, output);
   const tells = findTells(output);
 
+  const normalizedDraft = normalizeForHash(draft);
+  const normalizedOutput = normalizeForHash(output);
+  const unchanged =
+    normalizedDraft.length > 0 && normalizedDraft === normalizedOutput;
+  const repeated =
+    !unchanged &&
+    normalizedDraft.length > 80 &&
+    normalizedOutput.includes(normalizedDraft);
+
+  if (unchanged) {
+    tells.push({
+      id: "unchanged",
+      label: "Draft left unchanged",
+      severity: "high",
+      count: 1,
+      examples: ["The output is identical to the draft."],
+    });
+  } else if (repeated) {
+    tells.push({
+      id: "repeated-draft",
+      label: "Draft repeated in output",
+      severity: "high",
+      count: 1,
+      examples: ["The draft appears inside the rewrite."],
+    });
+  }
+
   const draftBold = (draft.match(/\*\*[^*\n]+\*\*/g) ?? []).length;
   const outputBold = (output.match(/\*\*[^*\n]+\*\*/g) ?? []).length;
   if (outputBold >= 4 && outputBold > draftBold + 1) {
@@ -414,6 +446,8 @@ export function runChecks(input: {
   if (facts.missingLinks.length > 0) score -= 12;
   score -= Math.min(8, facts.missingNames.length * 2);
   score -= Math.min(6, facts.addedNumbers.length * 2);
+  if (unchanged) score -= 20;
+  if (repeated) score -= 18;
   if (rhythm.verdict === "flat") score -= 6;
   if (draftWords >= 40 && (lengthRatio < 0.6 || lengthRatio > 1.65)) score -= 6;
   score = clamp(Math.round(score), 0, 100);
@@ -431,9 +465,14 @@ export function runChecks(input: {
       `${facts.missingNames.length} name${facts.missingNames.length === 1 ? "" : "s"} may not have survived.`,
     );
   }
+  if (unchanged) {
+    notes.push("The model left the draft unchanged.");
+  } else if (repeated) {
+    notes.push("The rewrite repeats the draft instead of editing it.");
+  }
   if (tells.length > 0) {
     notes.push(
-      `${tells.reduce((sum, tell) => sum + tell.count, 0)} AI-shaped phrase${tells.reduce((sum, tell) => sum + tell.count, 0) === 1 ? "" : "s"} found.`,
+      `${tells.reduce((sum, tell) => sum + tell.count, 0)} pattern${tells.reduce((sum, tell) => sum + tell.count, 0) === 1 ? "" : "s"} found.`,
     );
   }
   if (rhythm.verdict === "flat") {
