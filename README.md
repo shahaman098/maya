@@ -89,7 +89,7 @@ npm run desktop:pack    # local unpacked app for testing
 npm run desktop:win     # Windows NSIS installer, run on Windows
 ```
 
-The Windows installer is built by `.github/workflows/windows.yml` on a `windows-latest` runner. It uploads `release/Maya-Setup-*.exe` as an artifact. It is **unsigned** unless you add a code-signing certificate; unsigned installers trigger Windows SmartScreen.
+The Windows installer is built by `.github/workflows/windows.yml` on a `windows-latest` runner. It uploads `release/Maya-Setup-*.exe` as an artifact. Before uploading, CI starts the packaged server with the bundled `node.exe` and checks `/api/health`. The installer is **unsigned** unless you add a code-signing certificate; unsigned installers trigger Windows SmartScreen.
 
 ### First run
 
