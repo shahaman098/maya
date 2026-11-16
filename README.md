@@ -11,7 +11,7 @@ It is an editor. It is not an AI detector, and it does not promise to beat one.
 ## What it does
 
 - **Builds a voice profile** from real writing. Sentence rhythm, contractions, lowercase habits, punctuation, recurring phrases, openings, and sign-offs. A model adds a qualitative read: rhythm, diction, structure, punctuation, warmth, quirks, and things to avoid.
-- **Retrieves style references** using format, audience, length, wording overlap, and optional MiniLM embeddings. Results are diversified so you don't get five near-identical samples.
+- **Retrieves style references** using format, audience, length, wording overlap, and optional MiniLM embeddings from a separate embeddings endpoint. Results are diversified so you don't get five near-identical samples.
 - **Rewrites in context**: message, email, essay, post, or note; to a friend, colleague, client, or public audience; shorter, same, or a little longer; preserve, light touch, or restructure.
 - **Checks the result**: preserved numbers, quotes, names, and links; AI tells; sentence rhythm; length; and PII.
 - **Audits fidelity** with the model, then makes a targeted second pass when details go missing. A candidate is only accepted if it does not lose more facts than the first pass.
@@ -41,6 +41,28 @@ The default writer is `qwen3.5:9b` at `http://127.0.0.1:11434/v1`. The embedding
 
 A 9B model at Q4 needs roughly 7 GB of free memory. A 12B model at Q8 is closer to 14 GB. The first run is slower while the model loads.
 
+### Using a cloud API instead of local
+
+Both writer slots are saved. Go to **Settings → Writer** and switch to **Cloud API**. Pick a preset (OpenAI, OpenRouter, DeepSeek, Groq, or Custom), set the model, and either paste a key or leave the key field blank to use an environment variable.
+
+Embeddings stay local by default, so semantic retrieval keeps working when the writer is hosted. If you move embeddings to a hosted endpoint as well, that endpoint receives sample text.
+
+The app never includes a key in the repository. Prefer `.env.local`:
+
+```bash
+OPENAI_API_KEY=sk-...
+# or
+OPENROUTER_API_KEY=sk-or-...
+# or
+DEEPSEEK_API_KEY=...
+# or
+GROQ_API_KEY=...
+# or, for a custom gateway
+MAYA_CLOUD_API_KEY=...
+```
+
+The Settings key field is stored in the local SQLite database. Leaving it blank keeps the key out of the database.
+
 ### Demo workspace
 
 This repository was developed with a demo database in `data/demo.db`. It contains 14 fictional samples, a generated voice profile, four saved rewrites, and one Lab case.
@@ -56,13 +78,26 @@ Without `MAYA_DB_PATH`, the app uses `data/maya.db`, which starts empty.
 
 ## Models
 
-### Writer
+### Writer: local or cloud
 
-Maya uses the OpenAI-compatible `/v1/chat/completions` shape. That covers Ollama, llama.cpp, LM Studio, vLLM, and many hosted providers.
+Maya has two saved writer slots:
+
+- **Local** defaults to `qwen3.5:9b` on Ollama at `http://127.0.0.1:11434/v1`.
+- **Cloud API** defaults to the OpenAI-compatible shape at `https://api.openai.com/v1`; presets are provided for OpenAI, OpenRouter, DeepSeek, and Groq.
+
+The switch in **Settings → Writer** changes the active slot. The other slot and its key stay saved. The topbar model pill shows which one is live (`Local · qwen3.5:9b` or `API · gpt-4.1`).
 
 For Qwen3.5, thinking is on by default. Maya sends `reasoning_effort: "none"` when **Skip model reasoning** is enabled. If a provider rejects that field, the client retries without it.
 
-If the writer is a hosted endpoint, drafts and samples leave the machine. The app warns you in Settings when the base URL is not local.
+The client also retries common OpenAI-compatibility differences: it removes `temperature`, `top_p`, or `response_format` when a provider rejects them, and switches `max_tokens` to `max_completion_tokens` when a newer model requires it. A provider can still reject a request for its own reasons; the connection test and error message are the first place to look.
+
+If the writer is a hosted endpoint, drafts, samples, and retrieved examples leave the machine. The app shows a warning at the top of Settings and in the Writer card.
+
+### Embeddings
+
+The embedding endpoint is separate from the writer. It defaults to local Ollama with `all-minilm` (384 dimensions, about 45 MB) at the usual `/v1` URL. This is deliberate: an API writer should not force your samples through a hosted embedding service.
+
+Changing the embedding base URL, model, or key clears the stored vectors. They rebuild on the next rewrite. You can use a hosted embedding model such as OpenAI's `text-embedding-3-small`, but sample text will go to that endpoint and the dimension changes.
 
 ### Baseline (optional)
 
@@ -177,7 +212,7 @@ Every rewrite stores the draft, output, your edits, your rating, and your note. 
 - **Voice**: the written read, stylometric fingerprint, phrases, keep/avoid, sample library, import.
 - **History**: search, reopen, copy, edit, rate, add a case to the Lab.
 - **Lab**: run voice-matched, generic, raw, and optional baseline variants on the same draft; rate outputs manually.
-- **Settings**: writer and baseline endpoints, thinking switch, polish pass, retrieval, PII redaction, export, delete.
+- **Settings**: local/API writer switch, baseline endpoint, separate embeddings endpoint, thinking switch, polish pass, retrieval, PII redaction, export, delete.
 
 ## Importing
 
@@ -193,7 +228,8 @@ Imports are deduplicated, short fragments are skipped, and PII is redacted by de
 - There is no authentication. It is a single-user local app; do not expose port 3000 to the public internet.
 - API keys are stored in the local database. The JSON export omits them. Prefer an environment variable if you use a hosted endpoint.
 - PII detection is best-effort. Review a sample after import if it contains sensitive details.
-- If you point the writer at a hosted endpoint, drafts, samples, and retrieved examples are sent there. The Settings page warns you.
+- If you point the writer at a hosted endpoint, drafts, samples, and retrieved examples are sent there. If you point embeddings at a hosted endpoint, sample text is sent there for embedding. The Settings page warns you in both cases.
+- Keys pasted into Settings are stored in the local SQLite file. Keys from `.env.local` stay out of the database. The JSON export omits both.
 
 ## Development
 
@@ -213,10 +249,22 @@ MAYA_DB_PATH=./data/maya.db
 MAYA_BASE_URL=http://127.0.0.1:11434/v1
 MAYA_MODEL=qwen3.5:9b
 MAYA_API_KEY=
+
+MAYA_EMBED_BASE_URL=http://127.0.0.1:11434/v1
 MAYA_EMBED_MODEL=all-minilm
+MAYA_EMBED_API_KEY=
+
+MAYA_CLOUD_BASE_URL=https://api.openai.com/v1
+MAYA_CLOUD_MODEL=gpt-4.1
+MAYA_CLOUD_API_KEY=
+
+OPENAI_API_KEY=
+OPENROUTER_API_KEY=
+DEEPSEEK_API_KEY=
+GROQ_API_KEY=
 ```
 
-These only seed the defaults on first run. Settings saved in the app take over.
+See `.env.example` for the full list. These only seed the defaults on first run; Settings saved in the app take over. Provider keys are still read at request time when the key field is blank, so adding `OPENAI_API_KEY` to `.env.local` is enough even after the app has been configured.
 
 ### Project layout
 
@@ -229,6 +277,7 @@ lib/
   samples.ts         import, dedupe, redaction, retrieval rows
   stylometry.ts      measured style
   profile.ts         versioned voice profiles and the voice card
+  connections.ts     active local/API writer, embedding endpoint, env key fallback
   retrieval.ts       metadata, IDF, MiniLM, MMR
   prompts.ts         edit, profile, polish, and sentence-repair prompts
   checks.ts          deterministic AI-tell and fact checks
@@ -265,6 +314,8 @@ The tests cover stylometry, fact/tell checks, PII redaction, and the WhatsApp/JS
 - Single-user, local-first, no auth, no multi-tenant isolation.
 - No LoRA training is included. The right first step is retrieval and edited pairs; fine-tune only when there are enough approved examples.
 - The baseline comparison is a manual Lab, not a controlled benchmark.
+- The Cloud API slot needs a working key. Without one, the connection test returns an authentication error; that is expected. API model names and parameter support vary by provider, and the compatibility retries cannot cover every gateway.
+- The local and cloud writer slots share the same temperature, retrieval count, and repair settings. Only the endpoint, model, key, and thinking switch are per slot.
 
 ## Roadmap
 

@@ -19,6 +19,8 @@ const FALLBACK: HealthResponse = {
   profile: null,
   writer: {
     ok: false,
+    mode: "local",
+    label: "Local",
     model: "Model",
     models: [],
     error: "Maya's local API is not responding.",
@@ -79,7 +81,9 @@ export function useHealth() {
 export function ModelPill() {
   const { health, loading } = useHealth();
   const online = health?.writer.ok === true;
-  const label = health?.writer.model ?? "Model";
+  const mode = health?.writer.mode === "api" ? "API" : "Local";
+  const model = health?.writer.model || health?.writer.label || "Model";
+  const label = health ? `${mode} · ${model}` : "Model";
   const error =
     health?.writer.error ??
     (loading ? "Checking the model connection." : "The model is offline.");

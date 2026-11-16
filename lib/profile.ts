@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { activeWriter } from "@/lib/connections";
 import { getDb } from "@/lib/db";
 import { chat } from "@/lib/llm";
 import {
@@ -183,6 +184,7 @@ export async function createProfile(options: { useModel?: boolean } = {}): Promi
   warning?: string;
 }> {
   const settings = getSettings();
+  const active = activeWriter(settings);
   const samples = getConsentedSamples();
   if (samples.length === 0) return { profile: null };
 
@@ -200,12 +202,7 @@ export async function createProfile(options: { useModel?: boolean } = {}): Promi
       brief,
       samples: chooseProfileSamples(samples),
     });
-    const connection = {
-      baseUrl: settings.writer.baseUrl,
-      model: settings.writer.model,
-      apiKey: settings.writer.apiKey,
-      disableThinking: settings.writer.disableThinking,
-    };
+    const connection = active.connection;
 
     try {
       const first = await chat(connection, messages, {
@@ -245,7 +242,7 @@ export async function createProfile(options: { useModel?: boolean } = {}): Promi
     stats,
     brief,
     card,
-    model: options.useModel === false ? null : settings.writer.model,
+    model: options.useModel === false ? null : active.model,
     status,
     error,
   });

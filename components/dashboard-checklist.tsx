@@ -40,9 +40,9 @@ export function SetupChecklist({
       title: "Connect a model",
       detail:
         health?.writer.ok === true
-          ? health.writer.model
+          ? `${health.writer.mode === "api" ? "API" : "Local"} · ${health.writer.model || health.writer.label}`
           : health
-            ? "Add an Ollama or OpenAI-compatible endpoint."
+            ? "Add a local or cloud OpenAI-compatible endpoint."
             : "Checking the connection…",
       href: "/settings",
     },

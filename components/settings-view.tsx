@@ -18,6 +18,7 @@ import {
   Trash2,
   Wifi,
 } from "lucide-react";
+import { useHealth } from "@/components/health";
 import {
   Badge,
   Button,
@@ -25,17 +26,56 @@ import {
   Field,
   Input,
   Modal,
+  Segmented,
+  Select,
   Toggle,
   useToast,
 } from "@/components/ui";
 import type { Settings } from "@/lib/types";
 import { formatNumber, isLocalEndpoint } from "@/lib/utils";
 
+const API_PRESETS = [
+  {
+    value: "openai",
+    label: "OpenAI",
+    baseUrl: "https://api.openai.com/v1",
+    model: "gpt-4.1",
+  },
+  {
+    value: "openrouter",
+    label: "OpenRouter",
+    baseUrl: "https://openrouter.ai/api/v1",
+    model: "openai/gpt-4.1",
+  },
+  {
+    value: "deepseek",
+    label: "DeepSeek",
+    baseUrl: "https://api.deepseek.com/v1",
+    model: "deepseek-chat",
+  },
+  {
+    value: "groq",
+    label: "Groq",
+    baseUrl: "https://api.groq.com/openai/v1",
+    model: "llama-3.3-70b-versatile",
+  },
+  { value: "custom", label: "Custom", baseUrl: "", model: "" },
+] as const;
+
+function presetForBaseUrl(baseUrl: string): string {
+  return (
+    API_PRESETS.find(
+      (preset) => preset.value !== "custom" && preset.baseUrl === baseUrl,
+    )?.value ?? "custom"
+  );
+}
+
 interface TestResult {
-  target: "writer" | "baseline";
+  target: "writer" | "baseline" | "embedding";
   ok: boolean;
   message: string;
   models: string[];
+  dimensions?: number;
 }
 
 function Stat({ label, value }: { label: string; value: string }) {
@@ -84,11 +124,14 @@ export function SettingsView({
 }) {
   const router = useRouter();
   const toast = useToast();
+  const { refresh: refreshHealth } = useHealth();
 
   const [settings, setSettings] = useState<Settings>(initialSettings);
   const [saved, setSaved] = useState<Settings>(initialSettings);
   const [saving, setSaving] = useState(false);
-  const [testing, setTesting] = useState<"writer" | "baseline" | null>(null);
+  const [testing, setTesting] = useState<
+    "writer" | "baseline" | "embedding" | null
+  >(null);
   const [testResult, setTestResult] = useState<TestResult | null>(null);
   const [showKey, setShowKey] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -96,8 +139,11 @@ export function SettingsView({
   const [deleting, setDeleting] = useState(false);
 
   const dirty = JSON.stringify(settings) !== JSON.stringify(saved);
-  const cloudWriter = !isLocalEndpoint(settings.writer.baseUrl);
+  const activeWriterConfig =
+    settings.writer.mode === "api" ? settings.writer.api : settings.writer;
+  const cloudWriter = !isLocalEndpoint(activeWriterConfig.baseUrl);
   const cloudBaseline = !isLocalEndpoint(settings.baseline.baseUrl);
+  const cloudEmbedding = !isLocalEndpoint(settings.embedding.baseUrl);
 
   function updateWriter(patch: Partial<Settings["writer"]>) {
     setSettings((current) => ({
@@ -106,11 +152,47 @@ export function SettingsView({
     }));
   }
 
+  function updateApi(patch: Partial<Settings["writer"]["api"]>) {
+    setSettings((current) => ({
+      ...current,
+      writer: {
+        ...current.writer,
+        api: { ...current.writer.api, ...patch },
+      },
+    }));
+  }
+
+  function updateEmbedding(patch: Partial<Settings["embedding"]>) {
+    setSettings((current) => ({
+      ...current,
+      embedding: { ...current.embedding, ...patch },
+    }));
+  }
+
   function updateBaseline(patch: Partial<Settings["baseline"]>) {
     setSettings((current) => ({
       ...current,
       baseline: { ...current.baseline, ...patch },
     }));
+  }
+
+  function applyPreset(value: string) {
+    if (value === "custom") {
+      updateApi({ label: "Cloud API" });
+      return;
+    }
+    const preset = API_PRESETS.find((entry) => entry.value === value);
+    if (!preset) return;
+    updateApi({
+      label: preset.label,
+      baseUrl: preset.baseUrl,
+      model: preset.model,
+    });
+  }
+
+  function setActiveWriterModel(model: string) {
+    if (settings.writer.mode === "api") updateApi({ model });
+    else updateWriter({ model });
   }
 
   async function save() {
@@ -134,6 +216,7 @@ export function SettingsView({
       }
       toast.push({ title: "Settings saved", tone: "success" });
       router.refresh();
+      refreshHealth();
     } catch (error) {
       toast.push({
         title: "Could not save settings",
@@ -145,12 +228,46 @@ export function SettingsView({
     }
   }
 
-  async function test(target: "writer" | "baseline") {
+  async function test(target: "writer" | "baseline" | "embedding") {
     const connection =
-      target === "writer" ? settings.writer : settings.baseline;
+      target === "writer"
+        ? activeWriterConfig
+        : target === "baseline"
+          ? settings.baseline
+          : settings.embedding;
     setTesting(target);
     setTestResult(null);
     try {
+      if (target === "embedding") {
+        const response = await fetch("/api/embeddings/test", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            baseUrl: connection.baseUrl,
+            apiKey: connection.apiKey,
+            model: connection.model,
+          }),
+        });
+        const data = (await response.json().catch(() => ({}))) as {
+          dimensions?: number;
+          error?: string;
+          details?: { hint?: string };
+        };
+        if (!response.ok) {
+          throw new Error(
+            `${data.error ?? "The embedding endpoint did not answer."}${data.details?.hint ? ` ${data.details.hint}` : ""}`,
+          );
+        }
+        setTestResult({
+          target,
+          ok: true,
+          message: `Connected · ${data.dimensions ?? 0}-dimensional vectors`,
+          models: [],
+          dimensions: data.dimensions,
+        });
+        return;
+      }
+
       const response = await fetch("/api/models", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -211,6 +328,8 @@ export function SettingsView({
   const writerResult = testResult?.target === "writer" ? testResult : null;
   const baselineResult =
     testResult?.target === "baseline" ? testResult : null;
+  const embeddingResult =
+    testResult?.target === "embedding" ? testResult : null;
 
   return (
     <div className="space-y-7">
@@ -241,7 +360,7 @@ export function SettingsView({
           <p className="text-[11.5px] leading-5 text-amber">
             Your writer endpoint is not on this machine. Drafts, samples, and
             reference writing will be sent to{" "}
-            <span className="font-medium">{settings.writer.baseUrl}</span>.
+            <span className="font-medium">{activeWriterConfig.baseUrl}</span>.
           </p>
         </div>
       )}
@@ -254,90 +373,195 @@ export function SettingsView({
                 <p className="eyebrow">Model</p>
                 <h2 className="mt-1 font-serif text-[22px]">Writer</h2>
                 <p className="mt-1 text-[11.5px] leading-5 text-muted">
-                  Any OpenAI-compatible chat endpoint. Ollama is the default.
+                  Run a local model or a hosted OpenAI-compatible API. Both
+                  configurations are saved, so you can switch without losing
+                  either.
                 </p>
               </div>
               <Badge tone={cloudWriter ? "amber" : "moss"}>
-                {cloudWriter ? "Remote" : "Local"}
+                {settings.writer.mode === "api" ? "Cloud API" : "Local"}
               </Badge>
             </div>
 
-            <div className="mt-5 grid gap-4 sm:grid-cols-2">
-              <Field label="Label">
-                <Input
-                  value={settings.writer.label}
-                  onChange={(event) =>
-                    updateWriter({ label: event.target.value })
-                  }
-                />
-              </Field>
-              <Field
-                label="Base URL"
-                hint="Maya adds /v1 if it is missing."
-              >
-                <Input
-                  value={settings.writer.baseUrl}
-                  onChange={(event) =>
-                    updateWriter({ baseUrl: event.target.value })
-                  }
-                  placeholder="http://127.0.0.1:11434/v1"
-                />
-              </Field>
-              <Field label="Model">
-                <Input
-                  value={settings.writer.model}
-                  onChange={(event) =>
-                    updateWriter({ model: event.target.value })
-                  }
-                  placeholder="qwen3.5:9b"
-                  list="writer-models"
-                />
-                <datalist id="writer-models">
-                  {(writerResult?.models ?? []).map((model) => (
-                    <option key={model} value={model} />
-                  ))}
-                </datalist>
-              </Field>
-              <Field label="API key" hint="Leave blank for local models.">
-                <div className="relative">
-                  <Input
-                    type={showKey ? "text" : "password"}
-                    value={settings.writer.apiKey}
-                    onChange={(event) =>
-                      updateWriter({ apiKey: event.target.value })
-                    }
-                    placeholder="Optional"
-                    className="pr-10"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowKey((current) => !current)}
-                    aria-label={showKey ? "Hide API key" : "Show API key"}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-faint hover:text-ink"
+            <Segmented
+              value={settings.writer.mode}
+              onChange={(mode) => updateWriter({ mode })}
+              className="mt-4"
+              options={[
+                { value: "local", label: "Local model" },
+                { value: "api", label: "Cloud API" },
+              ]}
+            />
+
+            {settings.writer.mode === "api" ? (
+              <div className="mt-5 space-y-4">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field label="Provider preset">
+                    <Select
+                      value={presetForBaseUrl(settings.writer.api.baseUrl)}
+                      onChange={(event) => applyPreset(event.target.value)}
+                    >
+                      {API_PRESETS.map((preset) => (
+                        <option key={preset.value} value={preset.value}>
+                          {preset.label}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                  <Field label="Label">
+                    <Input
+                      value={settings.writer.api.label}
+                      onChange={(event) =>
+                        updateApi({ label: event.target.value })
+                      }
+                    />
+                  </Field>
+                  <Field
+                    label="Base URL"
+                    className="sm:col-span-2"
+                    hint="Maya adds /v1 if it is missing."
                   >
-                    {showKey ? (
-                      <EyeOff className="h-3.5 w-3.5" />
-                    ) : (
-                      <Eye className="h-3.5 w-3.5" />
-                    )}
-                  </button>
+                    <Input
+                      value={settings.writer.api.baseUrl}
+                      onChange={(event) =>
+                        updateApi({ baseUrl: event.target.value })
+                      }
+                      placeholder="https://api.openai.com/v1"
+                    />
+                  </Field>
+                  <Field
+                    label="Model"
+                    hint="Test the connection, then choose from the returned models."
+                  >
+                    <Input
+                      value={settings.writer.api.model}
+                      onChange={(event) =>
+                        updateApi({ model: event.target.value })
+                      }
+                      placeholder="gpt-4.1"
+                      list="writer-models"
+                    />
+                    <datalist id="writer-models">
+                      {(writerResult?.models ?? []).map((model) => (
+                        <option key={model} value={model} />
+                      ))}
+                    </datalist>
+                  </Field>
+                  <Field
+                    label="API key"
+                    hint="Leave blank to use OPENAI_API_KEY, OPENROUTER_API_KEY, DEEPSEEK_API_KEY, or GROQ_API_KEY from .env.local."
+                  >
+                    <div className="relative">
+                      <Input
+                        type={showKey ? "text" : "password"}
+                        value={settings.writer.api.apiKey}
+                        onChange={(event) =>
+                          updateApi({ apiKey: event.target.value })
+                        }
+                        placeholder="Stored locally"
+                        className="pr-10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowKey((current) => !current)}
+                        aria-label={showKey ? "Hide API key" : "Show API key"}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-faint hover:text-ink"
+                      >
+                        {showKey ? (
+                          <EyeOff className="h-3.5 w-3.5" />
+                        ) : (
+                          <Eye className="h-3.5 w-3.5" />
+                        )}
+                      </button>
+                    </div>
+                  </Field>
                 </div>
-              </Field>
-              <Field
-                label="Embedding model"
-                hint="Used for semantic example matching. all-minilm is 384-dimensional."
-              >
-                <Input
-                  value={settings.writer.embeddingModel}
-                  onChange={(event) =>
-                    updateWriter({ embeddingModel: event.target.value })
-                  }
-                  placeholder="all-minilm"
+
+                <Toggle
+                  checked={settings.writer.api.disableThinking}
+                  onChange={(next) => updateApi({ disableThinking: next })}
+                  label="Skip model reasoning"
+                  hint="Set this for reasoning-style API models when the provider accepts reasoning_effort: none."
                 />
-              </Field>
+              </div>
+            ) : (
+              <div className="mt-5 space-y-4">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field label="Label">
+                    <Input
+                      value={settings.writer.label}
+                      onChange={(event) =>
+                        updateWriter({ label: event.target.value })
+                      }
+                    />
+                  </Field>
+                  <Field
+                    label="Base URL"
+                    hint="Maya adds /v1 if it is missing."
+                  >
+                    <Input
+                      value={settings.writer.baseUrl}
+                      onChange={(event) =>
+                        updateWriter({ baseUrl: event.target.value })
+                      }
+                      placeholder="http://127.0.0.1:11434/v1"
+                    />
+                  </Field>
+                  <Field label="Model">
+                    <Input
+                      value={settings.writer.model}
+                      onChange={(event) =>
+                        updateWriter({ model: event.target.value })
+                      }
+                      placeholder="qwen3.5:9b"
+                      list="writer-models"
+                    />
+                    <datalist id="writer-models">
+                      {(writerResult?.models ?? []).map((model) => (
+                        <option key={model} value={model} />
+                      ))}
+                    </datalist>
+                  </Field>
+                  <Field label="API key" hint="Leave blank for local models.">
+                    <div className="relative">
+                      <Input
+                        type={showKey ? "text" : "password"}
+                        value={settings.writer.apiKey}
+                        onChange={(event) =>
+                          updateWriter({ apiKey: event.target.value })
+                        }
+                        placeholder="Optional"
+                        className="pr-10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowKey((current) => !current)}
+                        aria-label={showKey ? "Hide API key" : "Show API key"}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-faint hover:text-ink"
+                      >
+                        {showKey ? (
+                          <EyeOff className="h-3.5 w-3.5" />
+                        ) : (
+                          <Eye className="h-3.5 w-3.5" />
+                        )}
+                      </button>
+                    </div>
+                  </Field>
+                </div>
+
+                <Toggle
+                  checked={settings.writer.disableThinking}
+                  onChange={(next) => updateWriter({ disableThinking: next })}
+                  label="Skip model reasoning"
+                  hint="Recommended for Qwen3.5. Sends reasoning_effort: none so the model writes instead of thinking."
+                />
+              </div>
+            )}
+
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
               <Field
                 label="Examples per rewrite"
-                hint="0 disables retrieval and relies on the profile alone."
+                hint="0 disables retrieval and relies on the profile alone. Two is a safe default."
               >
                 <Input
                   type="number"
@@ -345,62 +569,47 @@ export function SettingsView({
                   max={10}
                   value={settings.writer.maxExamples}
                   onChange={(event) =>
-                    updateWriter({
-                      maxExamples: Number(event.target.value),
-                    })
+                    updateWriter({ maxExamples: Number(event.target.value) })
                   }
                 />
               </Field>
-            </div>
-
-            <div className="mt-4">
-              <div className="flex items-center justify-between gap-3">
-                <label
-                  htmlFor="writer-temperature"
-                  className="text-[12px] font-medium text-ink-soft"
-                >
-                  Temperature
-                </label>
-                <span className="text-[11px] tabular-nums text-muted">
-                  {settings.writer.temperature.toFixed(2)}
-                </span>
+              <div>
+                <div className="flex items-center justify-between gap-3">
+                  <label
+                    htmlFor="writer-temperature"
+                    className="text-[12px] font-medium text-ink-soft"
+                  >
+                    Temperature
+                  </label>
+                  <span className="text-[11px] tabular-nums text-muted">
+                    {settings.writer.temperature.toFixed(2)}
+                  </span>
+                </div>
+                <input
+                  id="writer-temperature"
+                  type="range"
+                  min={0}
+                  max={1.5}
+                  step={0.05}
+                  value={settings.writer.temperature}
+                  onChange={(event) =>
+                    updateWriter({ temperature: Number(event.target.value) })
+                  }
+                  className="mt-3 h-1 w-full accent-[#b0472b]"
+                />
+                <p className="mt-1 text-[10.5px] text-faint">
+                  Higher values vary the wording more. 0.65 is a good starting
+                  point.
+                </p>
               </div>
-              <input
-                id="writer-temperature"
-                type="range"
-                min={0}
-                max={1.5}
-                step={0.05}
-                value={settings.writer.temperature}
-                onChange={(event) =>
-                  updateWriter({ temperature: Number(event.target.value) })
-                }
-                className="mt-2 h-1 w-full accent-[#b0472b]"
-              />
-              <p className="mt-1 text-[10.5px] text-faint">
-                Higher values vary the wording more. Around 0.8 is a good
-                starting point.
-              </p>
             </div>
 
-            <div className="mt-5 space-y-4 border-t border-line pt-4">
-              <Toggle
-                checked={settings.writer.disableThinking}
-                onChange={(next) => updateWriter({ disableThinking: next })}
-                label="Skip model reasoning"
-                hint="Recommended for Qwen3.5. Sends reasoning_effort: none so the model writes instead of thinking."
-              />
+            <div className="mt-5 border-t border-line pt-4">
               <Toggle
                 checked={settings.writer.repairPass}
                 onChange={(next) => updateWriter({ repairPass: next })}
                 label="Polish the first pass"
                 hint="Run a short fidelity audit, then one targeted second pass if details went missing or AI tells remain."
-              />
-              <Toggle
-                checked={settings.writer.semanticRetrieval}
-                onChange={(next) => updateWriter({ semanticRetrieval: next })}
-                label="Semantic example matching"
-                hint="Embed your samples with MiniLM and use cosine similarity alongside format and wording."
               />
             </div>
 
@@ -412,7 +621,7 @@ export function SettingsView({
                 loading={testing === "writer"}
               >
                 <Wifi className="h-3.5 w-3.5" />
-                Test connection
+                Test active connection
               </Button>
               {writerResult && (
                 <p
@@ -433,11 +642,11 @@ export function SettingsView({
             </div>
             {writerResult?.models && writerResult.models.length > 0 && (
               <div className="mt-3 flex flex-wrap gap-1.5">
-                {writerResult.models.slice(0, 12).map((model) => (
+                {writerResult.models.slice(0, 14).map((model) => (
                   <button
                     key={model}
                     type="button"
-                    onClick={() => updateWriter({ model })}
+                    onClick={() => setActiveWriterModel(model)}
                     className="rounded-full border border-line bg-paper/50 px-2.5 py-1 text-[10px] text-muted transition hover:border-accent/30 hover:text-ink"
                   >
                     {model}
@@ -445,6 +654,113 @@ export function SettingsView({
                 ))}
               </div>
             )}
+          </Card>
+
+          <Card className="p-5 sm:p-6">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="eyebrow">Retrieval</p>
+                <h2 className="mt-1 font-serif text-[22px]">Embeddings</h2>
+                <p className="mt-1 text-[11.5px] leading-5 text-muted">
+                  Used for semantic example matching. This can stay on your
+                  machine even when the writer is a cloud API.
+                </p>
+              </div>
+              <Badge tone={cloudEmbedding ? "amber" : "moss"}>
+                {cloudEmbedding ? "Remote" : "Local"}
+              </Badge>
+            </div>
+
+            {cloudEmbedding && (
+              <div className="mt-4 flex items-start gap-2 rounded-lg border border-amber/20 bg-amber-soft/60 px-3 py-2 text-[10.5px] leading-5 text-amber">
+                <Globe className="mt-0.5 h-3 w-3 shrink-0" />
+                Sample text will be sent to {settings.embedding.baseUrl} for
+                embedding.
+              </div>
+            )}
+
+            <div className="mt-5 grid gap-4 sm:grid-cols-2">
+              <Field
+                label="Base URL"
+                className="sm:col-span-2"
+                hint="The embeddings endpoint. Ollama serves all-minilm at the usual /v1 URL."
+              >
+                <Input
+                  value={settings.embedding.baseUrl}
+                  onChange={(event) =>
+                    updateEmbedding({ baseUrl: event.target.value })
+                  }
+                  placeholder="http://127.0.0.1:11434/v1"
+                />
+              </Field>
+              <Field
+                label="Model"
+                hint="all-minilm is 384-dimensional. Changing it clears stored vectors."
+              >
+                <Input
+                  value={settings.embedding.model}
+                  onChange={(event) =>
+                    updateEmbedding({ model: event.target.value })
+                  }
+                  placeholder="all-minilm"
+                />
+              </Field>
+              <Field
+                label="API key"
+                hint="Leave blank unless the embeddings endpoint needs a key."
+              >
+                <Input
+                  type="password"
+                  value={settings.embedding.apiKey}
+                  onChange={(event) =>
+                    updateEmbedding({ apiKey: event.target.value })
+                  }
+                  placeholder="Optional"
+                />
+              </Field>
+            </div>
+
+            <div className="mt-4">
+              <Toggle
+                checked={settings.writer.semanticRetrieval}
+                onChange={(next) => updateWriter({ semanticRetrieval: next })}
+                label="Semantic example matching"
+                hint="Use embeddings alongside format, audience, length, and wording. Turn off to use lexical matching only."
+              />
+            </div>
+
+            <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-line pt-4">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => void test("embedding")}
+                loading={testing === "embedding"}
+              >
+                <Wifi className="h-3.5 w-3.5" />
+                Test embeddings
+              </Button>
+              {embeddingResult && (
+                <p
+                  className={
+                    embeddingResult.ok
+                      ? "flex items-center gap-1.5 text-[10.5px] text-moss"
+                      : "flex items-center gap-1.5 text-[10.5px] text-danger"
+                  }
+                >
+                  {embeddingResult.ok ? (
+                    <Check className="h-3.5 w-3.5" />
+                  ) : (
+                    <AlertTriangle className="h-3.5 w-3.5" />
+                  )}
+                  {embeddingResult.message}
+                </p>
+              )}
+            </div>
+
+            <p className="mt-3 text-[10px] leading-5 text-faint">
+              Changing the embedding endpoint or model clears the stored
+              vectors. They rebuild on the next rewrite.
+            </p>
           </Card>
 
           <Card className="p-5 sm:p-6">
@@ -700,6 +1016,19 @@ export function SettingsView({
               <Stat label="Words" value={formatNumber(counts.words)} />
               <Stat label="Redacted" value={formatNumber(counts.redacted)} />
               <Stat label="Rewrites" value={formatNumber(counts.rewrites)} />
+            </div>
+            <div className="mt-3 rounded-xl border border-line bg-paper/35 p-3">
+              <p className="text-[9px] uppercase tracking-[0.1em] text-faint">
+                Active writer
+              </p>
+              <p className="mt-1 text-[11.5px] font-medium text-ink-soft">
+                {settings.writer.mode === "api" ? "Cloud API" : "Local"} ·{" "}
+                {activeWriterConfig.model || "No model"}
+              </p>
+              <p className="mt-0.5 text-[9.5px] text-faint">
+                Embeddings: {settings.embedding.model} ·{" "}
+                {cloudEmbedding ? "remote" : "local"}
+              </p>
             </div>
             <p className="mt-3 flex items-center gap-1.5 text-[10px] text-faint">
               <HardDrive className="h-3 w-3" />

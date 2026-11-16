@@ -82,6 +82,7 @@ export async function retrieveExamples(input: {
   audience: Audience;
   settings: WriterSettings;
   connection: ModelConnection;
+  embeddingModel: string;
   limit?: number;
 }): Promise<{ examples: RetrievedExample[]; warning?: string }> {
   const limit = input.limit ?? input.settings.maxExamples ?? 5;
@@ -92,7 +93,7 @@ export async function retrieveExamples(input: {
   if (input.settings.semanticRetrieval) {
     const result = await ensureEmbeddings(
       input.connection,
-      input.settings.embeddingModel,
+      input.embeddingModel,
     );
     if (result.error) {
       warning = `Semantic matching is unavailable (${result.error}). Using format and wording instead.`;
@@ -128,13 +129,13 @@ export async function retrieveExamples(input: {
     candidates.some(
       (candidate) =>
         candidate.embedding &&
-        candidate.embeddingModel === input.settings.embeddingModel,
+        candidate.embeddingModel === input.embeddingModel,
     )
   ) {
     try {
       const vectors = await embed(
         input.connection,
-        input.settings.embeddingModel,
+        input.embeddingModel,
         [input.draft.slice(0, 4000)],
         { timeoutMs: 20_000 },
       );
@@ -164,7 +165,7 @@ export async function retrieveExamples(input: {
     if (
       queryEmbedding &&
       candidate.embedding &&
-      candidate.embeddingModel === input.settings.embeddingModel
+      candidate.embeddingModel === input.embeddingModel
     ) {
       semantic = Math.max(0, cosine(queryEmbedding, candidate.embedding));
     }
@@ -224,8 +225,8 @@ export async function retrieveExamples(input: {
         if (
           item.candidate.embedding &&
           chosen.candidate.embedding &&
-          item.candidate.embeddingModel === input.settings.embeddingModel &&
-          chosen.candidate.embeddingModel === input.settings.embeddingModel
+          item.candidate.embeddingModel === input.embeddingModel &&
+          chosen.candidate.embeddingModel === input.embeddingModel
         ) {
           similarity = Math.max(
             0,

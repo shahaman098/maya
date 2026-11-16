@@ -9,16 +9,24 @@ export const DEFAULT_SETTINGS: Settings = {
     name: "Maya",
   },
   writer: {
+    mode: "local",
     label: "Local model",
     baseUrl: env.MAYA_BASE_URL?.trim() || "http://127.0.0.1:11434/v1",
     model: env.MAYA_MODEL?.trim() || "qwen3.5:9b",
     apiKey: env.MAYA_API_KEY?.trim() || "",
-    embeddingModel: env.MAYA_EMBED_MODEL?.trim() || "all-minilm",
     temperature: 0.65,
     maxExamples: 2,
     repairPass: true,
     semanticRetrieval: true,
     disableThinking: true,
+    api: {
+      label: "Cloud API",
+      baseUrl:
+        env.MAYA_CLOUD_BASE_URL?.trim() || "https://api.openai.com/v1",
+      model: env.MAYA_CLOUD_MODEL?.trim() || "gpt-4.1",
+      apiKey: env.MAYA_CLOUD_API_KEY?.trim() || "",
+      disableThinking: false,
+    },
   },
   baseline: {
     enabled: false,
@@ -28,6 +36,14 @@ export const DEFAULT_SETTINGS: Settings = {
     apiKey: "",
     temperature: 1,
     disableThinking: false,
+  },
+  embedding: {
+    baseUrl:
+      env.MAYA_EMBED_BASE_URL?.trim() ||
+      env.MAYA_BASE_URL?.trim() ||
+      "http://127.0.0.1:11434/v1",
+    model: env.MAYA_EMBED_MODEL?.trim() || "all-minilm",
+    apiKey: env.MAYA_EMBED_API_KEY?.trim() || "",
   },
   privacy: {
     redactPii: true,

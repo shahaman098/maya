@@ -1,3 +1,4 @@
+import { activeWriter } from "@/lib/connections";
 import { errorResponse, jsonOk } from "@/lib/http";
 import { checkModel } from "@/lib/llm";
 import { getLatestProfile } from "@/lib/profile";
@@ -9,6 +10,8 @@ export const dynamic = "force-dynamic";
 
 interface ModelHealth {
   ok: boolean;
+  mode: "local" | "api";
+  label: string;
   model: string;
   models: string[];
   error?: string;
@@ -19,23 +22,22 @@ let cache: { key: string; at: number; value: ModelHealth } | null = null;
 export async function GET(): Promise<Response> {
   try {
     const settings = getSettings();
+    const active = activeWriter(settings);
     const samples = countSamples();
     const profile = getLatestProfile();
-    const key = `${settings.writer.baseUrl}|${settings.writer.model}|${settings.writer.apiKey}`;
+    const key = `${active.mode}|${active.connection.baseUrl}|${active.model}|${active.connection.apiKey}`;
     const now = Date.now();
 
     let writer: ModelHealth;
     if (cache && cache.key === key && now - cache.at < 20_000) {
       writer = cache.value;
     } else {
-      const check = await checkModel({
-        baseUrl: settings.writer.baseUrl,
-        model: settings.writer.model,
-        apiKey: settings.writer.apiKey,
-      });
+      const check = await checkModel(active.connection);
       writer = {
         ok: check.ok,
-        model: settings.writer.model,
+        mode: active.mode,
+        label: active.label,
+        model: active.model,
         models: check.models,
         ...(check.error ? { error: check.error } : {}),
       };

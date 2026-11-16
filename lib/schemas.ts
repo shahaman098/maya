@@ -71,17 +71,32 @@ export const profileRefreshSchema = z.object({
   useModel: z.boolean().default(true),
 });
 
+export const cloudWriterSchema = z.object({
+  label: z.string().trim().min(1).max(60),
+  baseUrl: z.string().trim().min(1).max(500),
+  model: z.string().trim().max(200),
+  apiKey: z.string().max(500),
+  disableThinking: z.boolean(),
+});
+
 export const writerConnectionSchema = z.object({
+  mode: z.enum(["local", "api"]),
   label: z.string().trim().min(1).max(60),
   baseUrl: z.string().trim().min(1).max(500),
   model: z.string().trim().min(1).max(200),
   apiKey: z.string().max(500),
-  embeddingModel: z.string().trim().min(1).max(200),
   temperature: z.number().min(0).max(2),
   maxExamples: z.number().int().min(0).max(10),
   repairPass: z.boolean(),
   semanticRetrieval: z.boolean(),
   disableThinking: z.boolean(),
+  api: cloudWriterSchema,
+});
+
+export const embeddingConnectionSchema = z.object({
+  baseUrl: z.string().trim().min(1).max(500),
+  model: z.string().trim().min(1).max(200),
+  apiKey: z.string().max(500),
 });
 
 export const baselineConnectionSchema = z.object({
@@ -100,6 +115,7 @@ export const settingsSchema = z.object({
   }),
   writer: writerConnectionSchema,
   baseline: baselineConnectionSchema,
+  embedding: embeddingConnectionSchema,
   privacy: z.object({
     redactPii: z.boolean(),
   }),
@@ -132,6 +148,12 @@ export const resetSchema = z.object({
 export const modelsTestSchema = z.object({
   baseUrl: z.string().trim().min(1).max(500),
   apiKey: z.string().max(500).optional(),
+});
+
+export const embeddingTestSchema = z.object({
+  baseUrl: z.string().trim().min(1).max(500),
+  apiKey: z.string().max(500).optional(),
+  model: z.string().trim().min(1).max(200),
 });
 
 export const sampleQuerySchema = z.object({

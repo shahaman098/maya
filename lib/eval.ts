@@ -1,3 +1,4 @@
+import { activeWriter } from "@/lib/connections";
 import { getDb } from "@/lib/db";
 import { ApiError } from "@/lib/http";
 import { executeRewrite, type RewriteVariant } from "@/lib/rewrite";
@@ -192,7 +193,7 @@ export async function runEvalVariant(input: {
   const initialModel =
     input.variant === "baseline"
       ? settings.baseline.model
-      : settings.writer.model;
+      : activeWriter(settings).model;
   const batchId = input.batchId ?? crypto.randomUUID();
   const id = insertEvalRun({
     batchId,

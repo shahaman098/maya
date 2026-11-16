@@ -206,17 +206,34 @@ export interface RewriteRequest {
   intent: Intent;
 }
 
-export interface WriterSettings {
+export type WriterMode = "local" | "api";
+
+export interface CloudWriterSettings {
   label: string;
   baseUrl: string;
   model: string;
   apiKey: string;
-  embeddingModel: string;
+  disableThinking: boolean;
+}
+
+export interface EmbeddingSettings {
+  baseUrl: string;
+  model: string;
+  apiKey: string;
+}
+
+export interface WriterSettings {
+  mode: WriterMode;
+  label: string;
+  baseUrl: string;
+  model: string;
+  apiKey: string;
   temperature: number;
   maxExamples: number;
   repairPass: boolean;
   semanticRetrieval: boolean;
   disableThinking: boolean;
+  api: CloudWriterSettings;
 }
 
 export interface BaselineSettings {
@@ -235,6 +252,7 @@ export interface Settings {
   };
   writer: WriterSettings;
   baseline: BaselineSettings;
+  embedding: EmbeddingSettings;
   privacy: {
     redactPii: boolean;
   };
@@ -280,6 +298,8 @@ export interface HealthResponse {
   profile: HealthProfile | null;
   writer: {
     ok: boolean;
+    mode: WriterMode;
+    label: string;
     model: string;
     models: string[];
     error?: string;

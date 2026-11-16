@@ -1,3 +1,4 @@
+import { activeEmbedding, activeWriter } from "@/lib/connections";
 import { auditFidelity, fidelityAcceptable } from "@/lib/fidelity";
 import { repairTells } from "@/lib/tell-repair";
 import { ApiError } from "@/lib/http";
@@ -86,16 +87,12 @@ function connectionFor(settings: Settings, variant: RewriteVariant): {
     };
   }
 
+  const active = activeWriter(settings);
   return {
-    connection: {
-      baseUrl: settings.writer.baseUrl,
-      model: settings.writer.model,
-      apiKey: settings.writer.apiKey,
-      disableThinking: settings.writer.disableThinking,
-    },
-    model: settings.writer.model,
-    label: "writer",
-    temperature: settings.writer.temperature,
+    connection: active.connection,
+    model: active.model,
+    label: active.mode,
+    temperature: active.temperature,
   };
 }
 
@@ -104,6 +101,15 @@ export async function prepareRewrite(
   variant: RewriteVariant,
 ): Promise<PreparedRewrite> {
   const settings = getSettings();
+  if (
+    settings.writer.mode === "api" &&
+    !settings.writer.api.model.trim()
+  ) {
+    throw new ApiError(
+      "Add a model for the Cloud API in Settings before rewriting.",
+      400,
+    );
+  }
   const connectionInfo = connectionFor(settings, variant);
   const warnings: string[] = [];
 
@@ -133,12 +139,14 @@ export async function prepareRewrite(
         "There is no voice profile yet, so this will be a generic edit. Add a few samples in Voice to match your writing.",
       );
     } else {
+      const embedding = activeEmbedding(settings);
       const retrieval = await retrieveExamples({
         draft: input.draft,
         genre: input.genre,
         audience: input.audience,
         settings: settings.writer,
-        connection: connectionInfo.connection,
+        connection: embedding.connection,
+        embeddingModel: embedding.model,
       });
       examples = retrieval.examples;
       if (retrieval.warning) warnings.push(retrieval.warning);

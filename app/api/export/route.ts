@@ -18,8 +18,13 @@ export async function GET(): Promise<Response> {
 
     const safeSettings = {
       ...settings,
-      writer: { ...settings.writer, apiKey: "" },
+      writer: {
+        ...settings.writer,
+        apiKey: "",
+        api: { ...settings.writer.api, apiKey: "" },
+      },
       baseline: { ...settings.baseline, apiKey: "" },
+      embedding: { ...settings.embedding, apiKey: "" },
     };
 
     const payload = {

@@ -20,8 +20,9 @@ export async function PATCH(request: Request): Promise<Response> {
     const next = updateSettings(body);
 
     if (
-      previous.writer.baseUrl !== next.writer.baseUrl ||
-      previous.writer.embeddingModel !== next.writer.embeddingModel
+      previous.embedding.baseUrl !== next.embedding.baseUrl ||
+      previous.embedding.model !== next.embedding.model ||
+      previous.embedding.apiKey !== next.embedding.apiKey
     ) {
       getDb()
         .prepare(

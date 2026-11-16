@@ -210,12 +210,42 @@ async function postChat(
 ): Promise<Response> {
   let attempts = 0;
 
-  while (attempts < 3) {
+  while (attempts < 7) {
     try {
       return await post(connection, "/chat/completions", body, options);
     } catch (error) {
       attempts += 1;
       if (!(error instanceof LLMError) || error.status !== 400) throw error;
+
+      const message = error.message.toLowerCase();
+      if (/invalid model|model.*(?:not|does not exist)/i.test(message)) {
+        throw error;
+      }
+
+      if (/max_tokens|max_completion_tokens/.test(message) && "max_tokens" in body) {
+        body.max_completion_tokens = body.max_tokens;
+        delete body.max_tokens;
+        continue;
+      }
+      if (/temperature/.test(message) && "temperature" in body) {
+        delete body.temperature;
+        continue;
+      }
+      if (/top_p/.test(message) && "top_p" in body) {
+        delete body.top_p;
+        continue;
+      }
+      if (/reasoning_effort/.test(message) && "reasoning_effort" in body) {
+        delete body.reasoning_effort;
+        continue;
+      }
+      if (/response_format/.test(message) && "response_format" in body) {
+        delete body.response_format;
+        continue;
+      }
+
+      // Some gateways return a generic invalid-request body. Try the
+      // common compatibility removals once each before giving up.
       if ("reasoning_effort" in body) {
         delete body.reasoning_effort;
         continue;
@@ -224,6 +254,20 @@ async function postChat(
         delete body.response_format;
         continue;
       }
+      if ("temperature" in body) {
+        delete body.temperature;
+        continue;
+      }
+      if ("top_p" in body) {
+        delete body.top_p;
+        continue;
+      }
+      if ("max_tokens" in body) {
+        body.max_completion_tokens = body.max_tokens;
+        delete body.max_tokens;
+        continue;
+      }
+
       throw error;
     }
   }
@@ -499,6 +543,14 @@ export async function checkModel(connection: ModelConnection): Promise<{
   models: string[];
   error?: string;
 }> {
+  if (!connection.model.trim()) {
+    return {
+      ok: false,
+      models: [],
+      error: "No model is configured for this connection.",
+    };
+  }
+
   try {
     const models = await listModels(connection, 5000);
     const found = models.some(
