@@ -82,7 +82,42 @@ const RULES: TellRule[] = [
     label: "Dramatic one-line closer",
     severity: "high",
     pattern:
-      /\b(?:let that sink in|that(?:'|’)s the (?:real )?win|that(?:'|’)s what it(?:'|’)s about|that(?:'|’)s the whole point|and that(?:'|’)s (?:the )?(?:magic|beauty)|this is what [^.!?\n]{0,40} looks like)\b/giu,
+      /\b(?:let that sink in|(?:take|soak) that in|read that again|that(?:'|’)s the (?:real )?win|that(?:'|’)s what it(?:'|’)s about|that(?:'|’)s the whole point|and that(?:'|’)s (?:the )?(?:magic|beauty)|this is what [^.!?\n]{0,40} looks like)\b/giu,
+  },
+  {
+    id: "dramatic-closer-bare",
+    label: "Dramatic one-line closer",
+    severity: "high",
+    pattern:
+      /(?:^|[.!?]\s+)(?:think about (?:that|it)|sit with (?:that|it)|just think about (?:that|it)|wow|imagine that)[.!?]+(?=\s|$)/giu,
+  },
+  {
+    id: "milestone-hype",
+    label: "Milestone hype",
+    severity: "medium",
+    pattern:
+      /\b(?:(?:a|this|that) (?:huge|big|major|significant|important|key|exciting|proud) (?:moment|milestone|step(?: forward)?|day)|marks? (?:a|an|the) (?:step forward|milestone|new (?:era|chapter)|shift)|(?:a|the) (?:new|next|exciting) chapter|(?:a|the) new beginning|(?:is|was|marks) (?:a|an) (?:milestone|new chapter))\b/giu,
+  },
+  {
+    id: "verdict-sentence",
+    label: "Generic verdict sentence",
+    severity: "medium",
+    pattern:
+      /\b(?:these|the|our|this) (?:results|findings|work|study|data) (?:demonstrates?|highlights?|underscores?|showcases?|illustrates?|shows?) (?:a|an|the)? ?(?:promising|significant|compelling|powerful|exciting|novel|important) [a-z-]+/giu,
+  },
+  {
+    id: "stock-closer",
+    label: "Stock closing line",
+    severity: "medium",
+    pattern:
+      /\b(?:(?:we|i) can(?:'|’)t wait to (?:hear|see) what you think|(?:we|i)(?:'|’)d love to hear (?:your thoughts|from you|what you think)|feel free to reach out|don(?:'|’)t hesitate to (?:reach out|contact)|i hope this (?:email|message|note) finds you well|stay tuned)\b/giu,
+  },
+  {
+    id: "stock-email",
+    label: "Stock email phrasing",
+    severity: "low",
+    pattern:
+      /\b(?:i (?:just )?wanted to (?:follow up|reach out|touch base|check in)|let me know if you have any (?:questions|concerns)|please (?:find|see) attached)\b/giu,
   },
   {
     id: "deep-saying",
@@ -464,7 +499,7 @@ export function runChecks(input: {
   ) {
     tells.push({
       id: "new-em-dash",
-      label: "Em dash where she rarely uses one",
+      label: "Em dash where the writer rarely uses one",
       severity: "low",
       count: (output.match(/[—–]/g) ?? []).length,
       examples: ["Em dashes are rare in the samples"],

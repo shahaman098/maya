@@ -399,7 +399,7 @@ export async function executeRewrite(
       output: usage.output + tellRepair.usage.output,
     };
 
-    const fillerFree = stripSafeTells(output);
+    const fillerFree = stripSafeTells(output, input.draft);
     if (fillerFree && fillerFree !== output) {
       const fillerChecks = runChecks({
         draft: input.draft,

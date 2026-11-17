@@ -63,6 +63,36 @@ function findTargets(
   return targets;
 }
 
+const FILLER_TELLS = new Set([
+  "milestone-hype",
+  "dramatic-closer",
+  "stock-closer",
+  "inflated-significance",
+]);
+
+function stillHasTell(text: string, tells: TellReport[]): boolean {
+  const lower = text.toLowerCase();
+  return tells.some((tell) =>
+    tell.examples.some((example) => lower.includes(example.toLowerCase())),
+  );
+}
+
+export function isDeletableFiller(
+  sentence: string,
+  tells: TellReport[],
+): boolean {
+  if (tells.length === 0 || !tells.every((tell) => FILLER_TELLS.has(tell.id))) {
+    return false;
+  }
+  if (/\d|https?:\/\/|@|["“”]/.test(sentence)) return false;
+  // A capitalised word after the first one is probably a name.
+  const rest = sentence.trim().split(/\s+/).slice(1);
+  if (rest.some((word) => /^[A-Z][a-z]/.test(word) && word !== "I")) {
+    return false;
+  }
+  return sentence.split(/\s+/).length <= 14;
+}
+
 export async function repairTells(input: {
   connection: ModelConnection;
   draft: string;
@@ -117,18 +147,17 @@ export async function repairTells(input: {
       if (replacement.includes("\n")) {
         replacement = replacement.split("\n")[0]?.trim() ?? "";
       }
-      if (replacement.length > 500) continue;
-      if (
-        replacement &&
-        tells.some((tell) =>
-          tell.examples.some((example) =>
-            replacement.toLowerCase().includes(example.toLowerCase()),
-          ),
-        )
-      ) {
-        continue;
+      const unusable =
+        replacement.length > 500 ||
+        (replacement !== "" &&
+          (stillHasTell(replacement, tells) ||
+            splitSentences(replacement).length > 2));
+      if (unusable) {
+        // Small models often hand the sentence back unchanged. A sentence
+        // that is only hype and carries no fact is safe to drop instead.
+        if (!isDeletableFiller(sentence, tells)) continue;
+        replacement = "";
       }
-      if (replacement && splitSentences(replacement).length > 2) continue;
 
       const updated = next.replace(sentence, replacement);
       if (updated === next) continue;

@@ -211,7 +211,7 @@ export async function POST(request: Request): Promise<Response> {
           }
         }
 
-        const fillerFree = stripSafeTells(output);
+        const fillerFree = stripSafeTells(output, body.draft);
         if (fillerFree && fillerFree !== output) {
           const fillerChecks = runChecks({
             draft: body.draft,

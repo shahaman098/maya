@@ -19,7 +19,10 @@ import {
 const ANTI_SLOP = `Remove these AI-shaped moves, even when the draft itself contains them. They are the thing to edit out, not imitate:
 - "not just X, but Y" and its semicolon, colon, and dash variants ("it's not just X; it's Y").
 - Press-release phrasing ("thrilled to announce", "excited to share", "proud to reveal").
-- One-line dramatic closers ("let that sink in", "that's the real win").
+- One-line dramatic closers ("let that sink in", "that's the real win") and their paraphrases ("take that in", "read that again").
+- Milestone hype ("a big moment for", "marks a step forward", "a new chapter", "a new beginning"). Say what actually happened instead, or drop it if the draft gives no detail.
+- Generic verdict sentences ("these results demonstrate a promising X"). State the specific finding plainly, or cut to what the draft actually claims.
+- Stock closers ("we can't wait to hear what you think", "feel free to reach out", "stay tuned"). Keep the request if there is one, in plainer words.
 - Throat-clearing ("here's the thing", "let's dive in", "in today's world").
 - Inflated significance ("a pivotal moment", "a testament to", "marking a shift").
 - Promotional adjectives ("breathtaking", "seamless", "vibrant", "game-changing").
@@ -134,8 +137,8 @@ export function buildRewriteMessages(input: {
 Non-negotiables:
 - Keep every fact, number, unit, date, name, quotation, and link exactly as it appears. Do not invent or infer details.
 - Keep the draft's meaning, emotional stance, and level of certainty. Do not add new feelings, judgments, or reactions.
-- For a preserve edit, keep every sentence's content and the same order of ideas. If a sentence is already plain and human, leave it alone.
-- Do not add a sentence unless you are splitting one. Do not delete a sentence unless it is pure filler with no fact (for example, "let that sink in").
+- For a preserve edit, keep every sentence's content and the same order of ideas. If a sentence is already plain and human, leave it alone. A sentence built from a stock AI phrase is not plain: reword it, even under a preserve edit. Swapping in a synonym is not enough ("a big moment" for "a pivotal moment" is the same move).
+- Do not add a sentence unless you are splitting one. Do not delete a sentence unless it carries no fact (for example, "let that sink in", "this marks a new chapter").
 - Do not compress by dropping details. Cut words, not facts.
 - Keep articles, prepositions, pronouns, and complete sentences. Never write telegraphic text by deleting grammar words.
 - Do not make every sentence short. Mirror the full range of sentence lengths in the draft and the voice profile.
@@ -266,6 +269,22 @@ export function buildProfileRetryMessages(
   ];
 }
 
+const TELL_FIX_GUIDANCE: Record<string, string> = {
+  "milestone-hype":
+    "Drop the label (milestone, new chapter, big moment) and say the plain fact it was standing in for. If there is no fact behind it, return DELETE.",
+  "verdict-sentence":
+    'Replace the vague verdict ("demonstrate a promising X") with what the draft actually claims, in plain words a person would say aloud. Do not add new results.',
+  "dramatic-closer": "This line carries no fact. Return DELETE.",
+  "stock-closer":
+    "If it asks the reader for something, ask in plain, specific words. Otherwise return DELETE.",
+  "press-release":
+    "Start with the news itself instead of announcing that you are announcing it.",
+  "inflated-significance":
+    "Say what changed instead of how important it is, or return DELETE.",
+  "not-just":
+    "State the one claim directly, without the 'not X but Y' contrast.",
+};
+
 export function buildTellRepairMessages(input: {
   sentence: string;
   tells: TellReport[];
@@ -280,9 +299,18 @@ export function buildTellRepairMessages(input: {
     )
     .join("; ");
 
-  const system = `You are a line editor. Rewrite one AI-shaped sentence so it sounds like the writer, without changing the meaning and without adding anything. Return only the new sentence. If the sentence can be removed without losing meaning, return DELETE. No quotes, no commentary, no labels.`;
+  const guidance = [
+    ...new Set(
+      input.tells
+        .map((tell) => TELL_FIX_GUIDANCE[tell.id])
+        .filter((line): line is string => Boolean(line)),
+    ),
+  ];
+
+  const system = `You are a line editor. Rewrite one AI-shaped sentence so it sounds like the writer, without changing the meaning and without adding anything. Returning the sentence unchanged is never a valid answer: the flagged phrase must be gone. Swapping in a synonym for the flagged phrase does not count either. Return only the new sentence. If the sentence carries no fact and can be removed without losing meaning, return DELETE. No quotes, no commentary, no labels.`;
 
   const user = `AI tell: ${labels}
+${guidance.length > 0 ? `\nHow to fix it:\n${guidance.map((line) => `- ${line}`).join("\n")}\n` : ""}
 
 Sentence to rewrite:
 ${input.sentence}

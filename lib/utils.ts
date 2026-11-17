@@ -90,33 +90,46 @@ export function cleanModelOutput(raw: string): string {
   return text.replace(/\n{3,}/g, "\n\n").trim();
 }
 
-export function stripSafeTells(text: string): string {
+const REMOVED = "\u0000";
+const DRAMATIC_CLOSER =
+  "(?:let that sink in|(?:take|soak) that in|read that again|(?:just )?think about (?:that|it)|sit with (?:that|it)|that(?:'|’)s (?:the real )?win)";
+
+export function stripSafeTells(text: string, draft?: string): string {
   let result = text;
 
+  // Removals leave a marker so a sentence that now starts mid-clause
+  // ("our new flow is live") can be recapitalised afterwards.
   result = result.replace(
     /\b(?:we(?:'|’)re|we are|i(?:'|’)m|i am)\s+(?:thrilled|excited|delighted|proud|happy)\s+to\s+(?:announce|share|reveal|confirm|let you know)(?:\s+that)?\s*/giu,
-    "",
+    REMOVED,
   );
   result = result.replace(
     /(^|\n)\s*(?:thrilled|excited|delighted|proud|happy)\s+to\s+(?:announce|share|reveal|confirm)\s*:?\s*/giu,
+    `$1${REMOVED}`,
+  );
+  result = result.replace(
+    new RegExp(`(^|\\n)[ \\t]*${DRAMATIC_CLOSER}(?:[.!?]+|(?=\\n)|$)[ \\t]*`, "giu"),
     "$1",
   );
   result = result.replace(
-    /(^|\n)\s*let that sink in[.!?]?\s*/gi,
+    new RegExp(
+      `([.!?…]["'”’)\\]]?)[ \\t]+${DRAMATIC_CLOSER}(?:[.!?]+(?=\\s|$)|(?=\\n)|$)`,
+      "giu",
+    ),
     "$1",
   );
-  result = result.replace(
-    /(^|\n)\s*that(?:'|’)s (?:the real )?win[.!?]?\s*/gi,
-    "$1",
-  );
-  result = result.replace(
-    /([.!?…]["'”’)\]]?)\s+let that sink in[.!?]?/gi,
-    "$1",
-  );
-  result = result.replace(
-    /([.!?…]["'”’)\]]?)\s+that(?:'|’)s (?:the real )?win[.!?]?/gi,
-    "$1",
-  );
+
+  result = result
+    .replace(
+      new RegExp(`(^|[.!?…]["'”’)\\]]?\\s+|\\n\\s*)${REMOVED}(\\p{Ll})`, "gu"),
+      (_, before: string, letter: string) => `${before}${letter.toUpperCase()}`,
+    )
+    .replaceAll(REMOVED, "");
+
+  // Models sometimes trail off with an ellipsis the draft never had.
+  if (draft !== undefined && !/(?:\.{3}|…)\s*$/.test(draft)) {
+    result = result.replace(/(\w)\s*(?:\.{3,}|…)\s*$/u, "$1.");
+  }
 
   return result
     .replace(/[ \t]{2,}/g, " ")
