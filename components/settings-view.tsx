@@ -31,44 +31,10 @@ import {
   Toggle,
   useToast,
 } from "@/components/ui";
+import { RerunSetupButton } from "@/components/desktop-setup";
+import { API_PRESETS, presetForBaseUrl } from "@/lib/providers";
 import type { Settings } from "@/lib/types";
 import { formatNumber, isLocalEndpoint } from "@/lib/utils";
-
-const API_PRESETS = [
-  {
-    value: "openai",
-    label: "OpenAI",
-    baseUrl: "https://api.openai.com/v1",
-    model: "gpt-4.1",
-  },
-  {
-    value: "openrouter",
-    label: "OpenRouter",
-    baseUrl: "https://openrouter.ai/api/v1",
-    model: "openai/gpt-4.1",
-  },
-  {
-    value: "deepseek",
-    label: "DeepSeek",
-    baseUrl: "https://api.deepseek.com/v1",
-    model: "deepseek-chat",
-  },
-  {
-    value: "groq",
-    label: "Groq",
-    baseUrl: "https://api.groq.com/openai/v1",
-    model: "llama-3.3-70b-versatile",
-  },
-  { value: "custom", label: "Custom", baseUrl: "", model: "" },
-] as const;
-
-function presetForBaseUrl(baseUrl: string): string {
-  return (
-    API_PRESETS.find(
-      (preset) => preset.value !== "custom" && preset.baseUrl === baseUrl,
-    )?.value ?? "custom"
-  );
-}
 
 interface TestResult {
   target: "writer" | "baseline" | "embedding";
@@ -343,6 +309,7 @@ export function SettingsView({
           </p>
         </div>
         <div className="flex items-center gap-2 pb-0.5">
+          <RerunSetupButton />
           {dirty && (
             <span className="text-[10.5px] font-medium text-amber">
               Unsaved changes

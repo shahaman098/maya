@@ -79,7 +79,11 @@ Without `MAYA_DB_PATH`, the app uses `data/maya.db`, which starts empty.
 
 ## Windows desktop app
 
-The web UI is wrapped in Electron. The installed app bundles its own Node runtime and the Next standalone server, so Maya does not need Node or a terminal on her laptop.
+**For people using Maya:** download **[Maya-Setup.exe](https://github.com/shahaman098/maya/releases/latest/download/Maya-Setup.exe)** and open it. It installs in one click with no admin prompt, opens Maya, and a setup guide takes over. The full walkthrough is in [docs/windows-setup.md](docs/windows-setup.md).
+
+The download page is served from GitHub Pages at <https://shahaman098.github.io/maya/>.
+
+The web UI is wrapped in Electron. The installed app bundles its own Node runtime and the Next standalone server, so the person using it doesn't need Node or a terminal.
 
 ```bash
 npm run dev             # terminal 1, for desktop development
@@ -89,25 +93,41 @@ npm run desktop:pack    # local unpacked app for testing
 npm run desktop:win     # Windows NSIS installer, run on Windows
 ```
 
-The Windows installer is built by `.github/workflows/windows.yml` on a `windows-latest` runner. It uploads `release/Maya-Setup-*.exe` as an artifact. Before uploading, CI starts the packaged server with the bundled `node.exe` and checks `/api/health`. The installer is **unsigned** unless you add a code-signing certificate; unsigned installers trigger Windows SmartScreen.
+### Publishing a release
 
-### First run
+`.github/workflows/windows.yml` builds the installer on `windows-latest` and smoke-tests the packaged server against `/api/health`. When you push a `v*` tag, it also publishes `Maya-Setup.exe` to a GitHub Release. Because the file name stays the same, `releases/latest/download/Maya-Setup.exe` always points to the newest build.
 
-On a new install, the app detects RAM and GPU and shows a setup card:
+```bash
+git tag v0.1.0 && git push origin v0.1.0
+```
 
-- **16 GB+ with a dedicated GPU, or 24 GB+ overall** → recommend local `qwen3.5:9b` (6.6 GB) plus `all-minilm` (45 MB).
-- **8–12 GB or integrated graphics** → recommend the cloud API; local `all-minilm` embeddings can still be used.
-- **24 GB+** → the optional 12B HF humaniser is a Lab baseline, not a default.
+The installer is **unsigned** unless you add a code-signing certificate, so Windows SmartScreen shows "Windows protected your PC" (users click **More info → Run anyway**).
 
-If local is chosen, the card checks for Ollama, offers a download link if it is missing, and downloads the two models with progress. If API is chosen, it links to **Settings → Writer → Cloud API**, where the provider preset, key, model and connection test live.
+### First-run setup
+
+The NSIS installer runs in one-click mode: per-user, no admin prompt, desktop and Start menu shortcuts, and it launches Maya when it finishes. On first launch the app shows a guided setup:
+
+1. **Choose.** Maya reads RAM and GPU and recommends local (16 GB+ with a dedicated GPU, or 24 GB+) or a cloud API.
+2. **Install everything.** One button runs these steps in order and skips any that are already done:
+   - downloads `OllamaSetup.exe` from ollama.com and refuses to run it unless Windows reports a valid Authenticode signature from Ollama,
+   - installs it silently,
+   - starts the Ollama tray app,
+   - pulls `qwen3.5:9b`, `all-minilm` and the humaniser `hf.co/npario/humanizer:Q4_K_M` through Ollama's HTTP API with byte-level progress,
+   - points embeddings at local Ollama and switches the humaniser on as the Lab baseline (`promptFormat: "humanizer"`).
+
+   On the API route this step comes after the key and skips only the local writer model, so Ollama, `all-minilm` and the humaniser are installed either way. The humaniser is on by default; a checkbox lets people with less memory skip its 7.6 GB.
+3. **API key.** Pick a provider, open its key page, paste the key, and **Test and save**. Maya lists the provider's models to check the key before saving it. This step is required on the API route and optional (a backup) on the local route.
+4. **Start.** Shows the three steps to a first rewrite and links to Voice.
+
+Setup state is stored in `%APPDATA%\Maya\setup.json`. **Settings → Run setup again** reopens the wizard.
 
 The app data lives in `%APPDATA%\Maya\maya.db`. The local server binds to `127.0.0.1` on a random port. The installer never contains the workspace database; `desktop:prepare` excludes it and refuses to package any `.db`, `.sqlite`, or `.sqlite3` file.
 
 ### Desktop caveats
 
-- The Windows installer is configured but not built or signed in this repository. The first artifact must be produced on Windows/CI.
+- The first installer must be built by CI on Windows. The automatic Ollama install, the signature check and the one-click installer have not yet been run on a real Windows machine.
 - The app bundles the Node runtime from the build machine; the CI uses Node 24 so the native SQLite binary matches.
-- No auto-updater yet. Install a newer signed build over the old one.
+- No auto-updater yet. To update, users download the newest `Maya-Setup.exe` and run it.
 - The macOS `desktop:pack` target is for local testing; the Windows target is the shipping target.
 
 ## Models

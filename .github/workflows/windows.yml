@@ -6,6 +6,9 @@ on:
     tags:
       - "v*"
 
+permissions:
+  contents: write
+
 jobs:
   windows:
     runs-on: windows-latest
@@ -68,3 +71,11 @@ jobs:
           name: maya-windows-installer
           path: release/*.exe
           if-no-files-found: error
+
+      - name: Publish the release download
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/Maya-Setup.exe
+          make_latest: true
+          generate_release_notes: true

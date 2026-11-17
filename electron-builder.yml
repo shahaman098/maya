@@ -24,15 +24,20 @@ win:
     - target: nsis
       arch:
         - x64
-  artifactName: Maya-Setup-${version}.${ext}
+  # A fixed name keeps one permanent download link:
+  # https://github.com/<owner>/<repo>/releases/latest/download/Maya-Setup.exe
+  artifactName: Maya-Setup.${ext}
 
 nsis:
-  oneClick: false
+  # One click: no wizard pages, no admin prompt, installs for the current
+  # user and opens Maya when it finishes. Setup continues inside the app.
+  oneClick: true
   perMachine: false
-  allowToChangeInstallationDirectory: true
-  createDesktopShortcut: true
+  runAfterFinish: true
+  createDesktopShortcut: always
   createStartMenuShortcut: true
   shortcutName: Maya
+  deleteAppDataOnUninstall: false
 
 mac:
   icon: desktop/icon.png
