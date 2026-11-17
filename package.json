@@ -17,8 +17,8 @@
     "seed": "tsx scripts/seed-demo.ts",
     "desktop:dev": "electron desktop/main.cjs",
     "desktop:prepare": "node scripts/prepare-desktop.mjs",
-    "desktop:pack": "npm run build && npm run desktop:prepare && electron-builder --dir",
-    "desktop:win": "npm run build && npm run desktop:prepare && electron-builder --win nsis"
+    "desktop:pack": "npm run build && npm run desktop:prepare && electron-builder --dir --publish never",
+    "desktop:win": "npm run build && npm run desktop:prepare && electron-builder --win nsis --publish never"
   },
   "dependencies": {
     "better-sqlite3": "^13.2.0",
