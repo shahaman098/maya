@@ -34,7 +34,7 @@ jobs:
       - name: Smoke-test the packaged server
         shell: pwsh
         run: |
-          $app = "release\win-unpacked\resources\app"
+          $app = (Resolve-Path "release\win-unpacked\resources\app").Path
           $env:MAYA_DB_PATH = Join-Path $env:RUNNER_TEMP "maya-smoke.db"
           $env:NODE_ENV = "production"
           $env:HOSTNAME = "127.0.0.1"
